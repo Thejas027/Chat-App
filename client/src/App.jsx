@@ -1,12 +1,14 @@
 import DashBoard from "./modules/Dashboard";
 import Form from "./modules/Form";
+import { Routes, Route } from "react-router-dom";
 
 function App() {
   return (
-    <div className=" h-screen flex flex-col justify-center items-center bg-blue-200">
-      {/* <Form /> */}
-      <DashBoard />
-    </div>
+    <Routes>
+      <Route path="/" element={<DashBoard />} />
+      <Route path="/users/sign_in" element={<Form isSignPage={true} />} />
+      <Route path="/users/sign_up" element={<Form isSignPage={false} />} />
+    </Routes>
   );
 }
 

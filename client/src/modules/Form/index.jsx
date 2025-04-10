@@ -22,7 +22,7 @@ const Form = ({ isSignPage = false }) => {
   console.log(data);
   return (
     <div className=" h-screen flex justify-center items-center">
-      <div className="bg-white w-[400px] h-auto shadow-2xl rounded-2xl p-8">
+      <div className="bg-white w-auto h-auto shadow-2xl rounded-2xl p-8">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-800">
             {isSignPage ? "Welcome Back" : "Join Us"}
@@ -65,21 +65,21 @@ const Form = ({ isSignPage = false }) => {
           <Button
             label={isSignPage ? "Sign In" : "Sign Up"}
             type="submit"
-            className="w-full bg-purple-600 hover:bg-purple-700 text-lg py-3"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-3"
           />
         </form>
         <div className="text-center mt-6 text-gray-600">
           {isSignPage ? (
             <>
               Don't have an account?{" "}
-              <span className="text-purple-600 font-semibold cursor-pointer hover:underline">
+              <span className="text-blue-600 font-semibold cursor-pointer hover:underline">
                 Sign Up
               </span>
             </>
           ) : (
             <>
               Already have an account?{" "}
-              <span className="text-purple-600 font-semibold cursor-pointer hover:underline">
+              <span className="text-blue-600 font-semibold cursor-pointer hover:underline">
                 Sign In
               </span>
             </>
