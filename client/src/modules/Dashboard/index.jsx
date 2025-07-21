@@ -1,7 +1,14 @@
 import user from "../../assests/user.png";
 import "./Dashboard.css"; // Import custom CSS for scrollbar styling
 import Input from "../../components/Input/index";
+import { useAuth } from "../../context/AuthContext";
+
 function DashBoard() {
+  const { user: currentUser, logout } = useAuth();
+  
+  const handleLogout = () => {
+    logout();
+  };
   const contacts = [
     {
       name: "John",
@@ -41,14 +48,25 @@ function DashBoard() {
       <div className="w-[25%] h-screen bg-gray-50 shadow-lg">
         <div className="flex justify-center items-center my-8">
           <div className="border-4 border-blue-500 rounded-full p-[2px] hover:scale-105 transition-transform duration-300">
-            <img src={user} alt="User" className="rounded-full w-20 h-20" />
+            <img src={currentUser?.avatar || user} alt="User" className="rounded-full w-20 h-20" />
           </div>
-          <div className="ml-6">
+          <div className="ml-6 flex-1">
             <h3 className="text-2xl font-bold text-gray-800 hover:text-blue-500 transition-colors duration-300">
-              Tutorials Dev
+              {currentUser?.fullName || 'Loading...'}
             </h3>
             <p className="text-md font-medium text-gray-500">My Account</p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="ml-4 p-2 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors duration-300"
+            title="Logout"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+              <polyline points="16,17 21,12 16,7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
         </div>
         <hr className="border-gray-300" />
         <div className="mt-6 px-4">
