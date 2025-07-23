@@ -103,14 +103,42 @@ class SocketManager {
       const { conversationId, content, type = 'text' } = data;
       
       try {
-        // TODO: Save message to database (we'll implement this next)
-        const messageData = {
-          _id: new Date().getTime().toString(), // Temporary ID
+        const { Message, Conversation } = require('../models');
+        
+        // Validate conversation exists and user is participant
+        const conversation = await Conversation.findById(conversationId);
+        if (!conversation || !conversation.participants.includes(socket.userId)) {
+          socket.emit('message_error', { error: 'Invalid conversation or unauthorized' });
+          return;
+        }
+
+        // Create and save message to database
+        const message = new Message({
           content,
           type,
-          sender: socket.user,
-          conversationId,
-          createdAt: new Date(),
+          sender: socket.userId,
+          conversation: conversationId,
+          status: 'sent'
+        });
+
+        await message.save();
+        
+        // Populate sender info
+        await message.populate('sender', 'fullName email avatar');
+
+        // Update conversation's last message
+        await Conversation.findByIdAndUpdate(conversationId, {
+          lastMessage: message._id,
+          updatedAt: new Date()
+        });
+
+        const messageData = {
+          _id: message._id,
+          content: message.content,
+          type: message.type,
+          sender: message.sender,
+          conversation: message.conversation,
+          createdAt: message.createdAt,
           status: 'sent'
         };
 
@@ -120,7 +148,7 @@ class SocketManager {
         console.log(`💬 Message sent in conversation ${conversationId} by ${socket.user.fullName}`);
         
         // Send confirmation to sender
-        socket.emit('message_sent', { messageId: messageData._id, status: 'sent' });
+        socket.emit('message_sent', { messageId: message._id, status: 'sent' });
         
       } catch (error) {
         console.error('Error sending message:', error);
