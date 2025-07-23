@@ -96,7 +96,7 @@ userSchema.virtual('initials').get(function() {
 });
 
 // INDEX: For better query performance
-userSchema.index({ email: 1 });
+// Email index is already created by unique: true
 userSchema.index({ isOnline: 1 });
 
 module.exports = mongoose.model('User', userSchema);

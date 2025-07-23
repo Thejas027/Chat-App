@@ -1,11 +1,18 @@
 const { verifyToken } = require('../utils/jwt');
 const { User } = require('../models');
 
-// Middleware to authenticate user using JWT from cookies
+// Middleware to authenticate user using JWT from cookies or Authorization header
 const authenticate = async (req, res, next) => {
   try {
-    // Get token from cookies
-    const token = req.cookies.authToken;
+    // Get token from cookies first, then from Authorization header
+    let token = req.cookies.authToken;
+    
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
     
     if (!token) {
       return res.status(401).json({
@@ -43,7 +50,15 @@ const authenticate = async (req, res, next) => {
 // Middleware for optional authentication (won't fail if no token)
 const optionalAuthenticate = async (req, res, next) => {
   try {
-    const token = req.cookies.authToken;
+    // Get token from cookies first, then from Authorization header
+    let token = req.cookies.authToken;
+    
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
     
     if (token) {
       const decoded = verifyToken(token);
