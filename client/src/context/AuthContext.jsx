@@ -111,6 +111,10 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (response.ok) {
+        // Store token for socket connection
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+        }
         dispatch({ type: 'AUTH_SUCCESS', payload: data.user });
         authToasts.registerSuccess(data.user.fullName);
         return { success: true, message: data.message };
@@ -151,6 +155,10 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (response.ok) {
+        // Store token for socket connection
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+        }
         dispatch({ type: 'AUTH_SUCCESS', payload: data.user });
         authToasts.loginSuccess(data.user.fullName);
         return { success: true, message: data.message };
@@ -174,10 +182,14 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         credentials: 'include'
       });
+      // Clear stored token
+      localStorage.removeItem('token');
       dispatch({ type: 'LOGOUT' });
       authToasts.logoutSuccess();
     } catch (error) {
       console.error('Logout error:', error);
+      // Clear stored token even if logout fails
+      localStorage.removeItem('token');
       dispatch({ type: 'LOGOUT' });
       authToasts.logoutSuccess(); // Still show success even if API call fails
     }
@@ -190,6 +202,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     ...state,
+    token: localStorage.getItem('token'),
     register,
     login,
     logout,

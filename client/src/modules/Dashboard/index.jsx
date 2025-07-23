@@ -1,6 +1,6 @@
 import user from "../../assests/user.png";
 import "./Dashboard.css"; // Import custom CSS for scrollbar styling
-import Input from "../../components/Input/index";
+import { Input } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 
 function DashBoard() {
