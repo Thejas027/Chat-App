@@ -1,32 +1,145 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../context/SocketContext';
 import UserAvatar from './components/UserAvatar';
 import ConversationsList from './components/ConversationsList';
 import MessagesArea from './components/MessagesArea';
 import MessageInput from './components/MessageInput';
+import { conversationsAPI } from '../../services/api';
+import { toast } from '../../utils/toast';
 
 const ChatPage = () => {
   const { user, logout } = useAuth();
+  const { socket, isConnected } = useSocket();
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [messageLoading, setMessageLoading] = useState(false);
 
-  const handleSelectConversation = (conversation) => {
-    setSelectedConversation(conversation);
-    // TODO: Load messages for this conversation
-  };
-
-  const handleSendMessage = (messageContent) => {
-    if (!selectedConversation) return;
-
-    const newMessage = {
-      id: Date.now(),
-      content: messageContent,
-      sender: { name: 'You' },
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isOwn: true
+  // Fetch conversations on component mount
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        setLoading(true);
+        const response = await conversationsAPI.getConversations();
+        setConversations(response.data || []);
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        toast.error('Failed to load conversations');
+        setConversations([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    fetchConversations();
+  }, []);
+
+  // Socket event handlers
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const handleNewMessage = (message) => {
+      // Update messages if this conversation is selected
+      if (selectedConversation && message.conversation === selectedConversation._id) {
+        setMessages(prev => [...prev, message]);
+      }
+
+      // Update conversations list
+      setConversations(prev => prev.map(conv => {
+        if (conv._id === message.conversation) {
+          return {
+            ...conv,
+            lastMessage: message.content,
+            lastMessageTime: message.createdAt,
+            unreadCount: conv._id === selectedConversation?._id ? 0 : (conv.unreadCount || 0) + 1
+          };
+        }
+        return conv;
+      }));
+    };
+
+    const handleConversationUpdate = (updatedConversation) => {
+      setConversations(prev => prev.map(conv => 
+        conv._id === updatedConversation._id ? updatedConversation : conv
+      ));
+    };
+
+    socket.on('new_message', handleNewMessage);
+    socket.on('conversation_updated', handleConversationUpdate);
+
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.off('conversation_updated', handleConversationUpdate);
+    };
+  }, [socket, isConnected, selectedConversation]);
+
+  const handleSelectConversation = async (conversation) => {
+    setSelectedConversation(conversation);
+    setMessageLoading(true);
+    
+    try {
+      const response = await conversationsAPI.getMessages(conversation._id);
+      setMessages(response.data || []);
+      
+      // Mark conversation as read
+      if (conversation.unreadCount > 0) {
+        await conversationsAPI.markAsRead(conversation._id);
+        setConversations(prev => prev.map(conv => 
+          conv._id === conversation._id ? { ...conv, unreadCount: 0 } : conv
+        ));
+      }
+      
+      // Join socket room for this conversation
+      if (socket) {
+        socket.emit('join_conversation', conversation._id);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+      toast.error('Failed to load messages');
+      setMessages([]);
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const handleSendMessage = async (messageContent, attachments = []) => {
+    if (!selectedConversation || !messageContent.trim()) return;
+
+    try {
+      const messageData = {
+        content: messageContent,
+        conversation: selectedConversation._id,
+        attachments
+      };
+
+      // Optimistically add message to UI
+      const tempMessage = {
+        _id: Date.now(),
+        content: messageContent,
+        sender: user,
+        createdAt: new Date().toISOString(),
+        isOwn: true,
+        status: 'sending'
+      };
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Send via socket for real-time delivery
+      if (socket && isConnected) {
+        socket.emit('send_message', messageData);
+      }
+
+      // Also send via API for persistence
+      await conversationsAPI.sendMessage(messageData);
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+      
+      // Remove the temp message on error
+      setMessages(prev => prev.filter(msg => msg._id !== Date.now()));
+    }
   };
 
   const handleLogout = async () => {
@@ -82,8 +195,10 @@ const ChatPage = () => {
 
         {/* Conversations List */}
         <ConversationsList
+          conversations={conversations}
           selectedConversation={selectedConversation}
           onSelectConversation={handleSelectConversation}
+          loading={loading}
         />
       </div>
 
@@ -142,13 +257,15 @@ const ChatPage = () => {
         <MessagesArea 
           selectedConversation={selectedConversation}
           messages={messages}
+          loading={messageLoading}
+          currentUser={user}
         />
 
         {/* Message Input */}
         {selectedConversation && (
           <MessageInput 
             onSendMessage={handleSendMessage}
-            disabled={!selectedConversation}
+            disabled={!selectedConversation || !isConnected}
           />
         )}
       </div>

@@ -1,57 +1,39 @@
 import PropTypes from 'prop-types';
 import UserAvatar from './UserAvatar';
+import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
-const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation }) => {
-  // Mock conversations for now
-  const mockConversations = [
-    {
-      id: 1,
-      name: 'John Smith',
-      lastMessage: 'Hey! How are you doing today?',
-      timestamp: '2m ago',
-      unreadCount: 2,
-      isOnline: true,
-      avatar: null
-    },
-    {
-      id: 2,
-      name: 'Sarah Wilson',
-      lastMessage: 'The meeting is scheduled for 3 PM',
-      timestamp: '15m ago',
-      unreadCount: 0,
-      isOnline: true,
-      avatar: null
-    },
-    {
-      id: 3,
-      name: 'Mike Johnson',
-      lastMessage: 'Thanks for the help!',
-      timestamp: '1h ago',
-      unreadCount: 0,
-      isOnline: false,
-      avatar: null
-    },
-    {
-      id: 4,
-      name: 'Emma Davis',
-      lastMessage: 'Can we reschedule our call?',
-      timestamp: '2h ago',
-      unreadCount: 1,
-      isOnline: true,
-      avatar: null
-    },
-    {
-      id: 5,
-      name: 'Alex Brown',
-      lastMessage: 'Perfect! See you tomorrow.',
-      timestamp: '1d ago',
-      unreadCount: 0,
-      isOnline: false,
-      avatar: null
+const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false }) => {
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInHours = (now - date) / (1000 * 60 * 60);
+    
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(diffInHours * 60);
+      return diffInMinutes <= 1 ? 'now' : `${diffInMinutes}m ago`;
+    } else if (diffInHours < 24) {
+      return `${Math.floor(diffInHours)}h ago`;
+    } else {
+      return date.toLocaleDateString();
     }
-  ];
+  };
 
-  const displayConversations = conversations.length > 0 ? conversations : mockConversations;
+  const getOtherParticipant = (conversation, currentUserId) => {
+    return conversation.participants?.find(p => p._id !== currentUserId) || {
+      fullName: 'Unknown User',
+      avatar: null
+    };
+  };
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <LoadingSpinner size="medium" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto">
@@ -59,50 +41,66 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
         <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
       </div>
       
-      <div className="divide-y divide-gray-100">
-        {displayConversations.map((conversation) => (
-          <div
-            key={conversation.id}
-            onClick={() => onSelectConversation(conversation)}
-            className={`p-4 cursor-pointer transition-colors duration-200 hover:bg-blue-50 ${
-              selectedConversation?.id === conversation.id ? 'bg-blue-100' : ''
-            }`}
-          >
-            <div className="flex items-center space-x-3">
-              <UserAvatar
-                src={conversation.avatar}
-                alt={conversation.name}
-                size="medium"
-                status={conversation.isOnline ? 'online' : 'offline'}
-                initials={conversation.name.split(' ').map(n => n[0]).join('')}
-              />
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900 truncate">
-                    {conversation.name}
-                  </h3>
-                  <span className="text-xs text-gray-500">
-                    {conversation.timestamp}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-sm text-gray-600 truncate max-w-40">
-                    {conversation.lastMessage}
-                  </p>
+      {conversations.length === 0 ? (
+        <div className="p-8 text-center text-gray-500">
+          <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.418 8-9 8a9.004 9.004 0 01-8.716-6.747M3 12a9 9 0 1118 0z" />
+            </svg>
+          </div>
+          <p className="text-sm">No conversations yet</p>
+          <p className="text-xs text-gray-400 mt-1">Start a new conversation to get chatting!</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {conversations.map((conversation) => {
+            const otherParticipant = getOtherParticipant(conversation, conversation.currentUserId);
+            
+            return (
+              <div
+                key={conversation._id}
+                onClick={() => onSelectConversation(conversation)}
+                className={`p-4 cursor-pointer transition-colors duration-200 hover:bg-blue-50 ${
+                  selectedConversation?._id === conversation._id ? 'bg-blue-100' : ''
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <UserAvatar
+                    src={otherParticipant.avatar}
+                    alt={otherParticipant.fullName}
+                    size="medium"
+                    status={otherParticipant.isOnline ? 'online' : 'offline'}
+                    initials={otherParticipant.fullName?.split(' ').map(n => n[0]).join('') || '?'}
+                  />
                   
-                  {conversation.unreadCount > 0 && (
-                    <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-blue-600 rounded-full">
-                      {conversation.unreadCount}
-                    </span>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {otherParticipant.fullName || 'Unknown User'}
+                      </h3>
+                      <span className="text-xs text-gray-500">
+                        {formatTimestamp(conversation.lastMessageTime)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-sm text-gray-600 truncate max-w-40">
+                        {conversation.lastMessage || 'No messages yet'}
+                      </p>
+                      
+                      {conversation.unreadCount > 0 && (
+                        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-blue-600 rounded-full">
+                          {conversation.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -110,7 +108,8 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
 ConversationsList.propTypes = {
   conversations: PropTypes.array,
   selectedConversation: PropTypes.object,
-  onSelectConversation: PropTypes.func.isRequired
+  onSelectConversation: PropTypes.func.isRequired,
+  loading: PropTypes.bool
 };
 
 export default ConversationsList;

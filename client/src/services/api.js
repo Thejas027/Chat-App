@@ -107,6 +107,12 @@ class ApiService {
     });
   }
 
+  async markAsRead(conversationId) {
+    return this.makeRequest(`/conversations/${conversationId}/read`, {
+      method: 'PUT'
+    });
+  }
+
   // Message endpoints
   async getMessages(conversationId, page = 1, limit = 50) {
     return this.makeRequest(`/messages/${conversationId}?page=${page}&limit=${limit}`);
@@ -172,4 +178,35 @@ class ApiService {
 }
 
 const apiService = new ApiService();
+
+// Convenient exports
+export const authAPI = {
+  login: (credentials) => apiService.login(credentials),
+  register: (userData) => apiService.register(userData),
+  logout: () => apiService.logout(),
+  refreshToken: () => apiService.refreshToken()
+};
+
+export const usersAPI = {
+  getProfile: () => apiService.getProfile(),
+  updateProfile: (profileData) => apiService.updateProfile(profileData),
+  getUsers: () => apiService.getUsers()
+};
+
+export const conversationsAPI = {
+  getConversations: () => apiService.getConversations(),
+  createPrivateConversation: (participantId) => apiService.createPrivateConversation(participantId),
+  createGroupConversation: (participants, name) => apiService.createGroupConversation(participants, name),
+  markAsRead: (conversationId) => apiService.markAsRead(conversationId),
+  getMessages: (conversationId, page, limit) => apiService.getMessages(conversationId, page, limit),
+  sendMessage: (messageData) => apiService.sendMessage(messageData),
+  deleteMessage: (messageId) => apiService.deleteMessage(messageId),
+  editMessage: (messageId, content) => apiService.editMessage(messageId, content),
+  searchMessages: (conversationId, query) => apiService.searchMessages(conversationId, query)
+};
+
+export const filesAPI = {
+  uploadFile: (file, conversationId) => apiService.uploadFile(file, conversationId)
+};
+
 export default apiService;

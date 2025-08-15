@@ -15,7 +15,7 @@ connectDB();
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // CORS configuration
 const corsOptions = {
@@ -36,6 +36,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/messages', require('./routes/messages'));
+// app.use('/api/files', require('./routes/files'));
 
 // Basic route
 app.get('/', (req, res) => {
