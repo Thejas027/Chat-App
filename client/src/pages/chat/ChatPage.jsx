@@ -2,40 +2,30 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import UserAvatar from './components/UserAvatar';
+import ProfileModal from './components/ProfileModal';
 import ConversationsList from './components/ConversationsList';
 import MessagesArea from './components/MessagesArea';
 import MessageInput from './components/MessageInput';
-import UsersList from './components/UsersList';
-import { conversationsAPI, usersAPI } from '../../services/api';
+import { conversationsAPI } from '../../services/api';
 import { showError } from '../../utils/toast';
-import { Tab } from '@headlessui/react';
-
-function classNames(...classes) {
-  return classes.filter(Boolean).join(' ');
-}
 
 const ChatPage = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, checkAuthStatus } = useAuth();
   const { socket, isConnected } = useSocket();
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usersLoading, setUsersLoading] = useState(true);
   const [messageLoading, setMessageLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+  // Tabs removed; keep UI simple
+  const [isProfileOpen, setProfileOpen] = useState(false);
 
-  // Fetch conversations and users
+  // Fetch conversations
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        setUsersLoading(true);
-        const [convResponse, usersResponse] = await Promise.all([
-          conversationsAPI.getConversations(),
-          usersAPI.getUsers(),
-        ]);
+        const convResponse = await conversationsAPI.getConversations();
         const conversationsData = (convResponse && convResponse.data && convResponse.data.data && convResponse.data.data.conversations) ? convResponse.data.data.conversations : [];
         const normalized = (Array.isArray(conversationsData) ? conversationsData : []).map(c => ({
           ...c,
@@ -45,13 +35,11 @@ const ChatPage = () => {
         const deduped = Array.from(new Map(normalized.map(c => [c._id, c])).values())
           .sort((a, b) => new Date(b.lastMessageTime || b.updatedAt) - new Date(a.lastMessageTime || a.updatedAt));
         setConversations(deduped);
-        setUsers(usersResponse.data || []);
       } catch (error) {
         console.error('Error fetching initial data:', error);
         showError('Failed to load data');
       } finally {
         setLoading(false);
-        setUsersLoading(false);
       }
     };
 
@@ -158,21 +146,7 @@ const ChatPage = () => {
     }
   };
 
-  const handleSelectUser = async (selectedUser) => {
-    try {
-      const response = await conversationsAPI.findOrCreateConversation(selectedUser._id);
-      const newConversation = response.data;
-      // Ensure conversations is always an array
-      if (!Array.isArray(conversations) || !conversations.find(c => c._id === newConversation._id)) {
-        setConversations(prev => [newConversation, ...(Array.isArray(prev) ? prev : prev ? [prev] : [])]);
-      }
-      handleSelectConversation(newConversation);
-      setActiveTab(0); // Switch to conversations tab
-    } catch (error) {
-      console.error('Error creating conversation:', error);
-      showError('Could not start conversation.');
-    }
-  };
+  // Users list removed from UI; starting new chats can be reintroduced via a modal later
 
   const handleSendMessage = async (content) => {
     if (!selectedConversation) return;
@@ -207,17 +181,31 @@ const ChatPage = () => {
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <UserAvatar src={user?.avatar} alt={user?.fullName} size="large" status="online" />
+              <div className="relative">
+                <UserAvatar src={user?.avatar} alt={user?.fullName} size="large" status="online" />
+                <button
+                  onClick={() => setProfileOpen(true)}
+                  className="absolute -bottom-1 -right-1 p-1 rounded-full bg-white text-gray-700 shadow border hover:bg-gray-50"
+                  title="Edit profile"
+                  aria-label="Edit profile"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
               <div>
                 <h2 className="font-semibold text-lg">{user?.fullName}</h2>
                 <p className="text-sm text-green-500">Online</p>
               </div>
             </div>
-            <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-200">
+            <div className="flex items-center gap-2">
+              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-200" title="Logout">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-            </button>
+              </button>
+            </div>
           </div>
         </div>
         
@@ -235,12 +223,21 @@ const ChatPage = () => {
       <div className="flex-1 flex flex-col">
         {selectedConversation ? (
           <>
-            <div className="p-4 bg-white border-b flex items-center space-x-4">
-              {selectedUser && <UserAvatar src={selectedUser.avatar} alt={selectedUser.fullName} status={selectedUser.isOnline ? 'online' : 'offline'} />}
-              <div>
-                <h3 className="font-semibold">{selectedUser?.fullName}</h3>
-                <p className="text-sm text-gray-500">{selectedUser?.isOnline ? 'Online' : 'Offline'}</p>
+            <div className="p-4 bg-white border-b flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                {selectedUser && (
+                  <UserAvatar
+                    src={selectedUser.avatar}
+                    alt={selectedUser.fullName}
+                    status={selectedUser.isOnline ? 'online' : 'offline'}
+                  />
+                )}
+                <div>
+                  <h3 className="font-semibold">{selectedUser?.fullName}</h3>
+                  <p className="text-sm text-gray-500">{selectedUser?.isOnline ? 'Online' : 'Offline'}</p>
+                </div>
               </div>
+              <div />
             </div>
             <MessagesArea
               selectedConversation={selectedConversation}
@@ -251,11 +248,23 @@ const ChatPage = () => {
             <MessageInput onSendMessage={handleSendMessage} disabled={!isConnected} />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
-            Select a conversation or user to start chatting
-          </div>
+          <>
+            <div className="p-4 bg-white border-b font-semibold text-gray-700">Chat</div>
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              Select a conversation or user to start chatting
+            </div>
+          </>
         )}
       </div>
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setProfileOpen(false)}
+        user={user}
+        onUpdated={async () => {
+          // Refresh auth context so header avatar/name update
+          await checkAuthStatus();
+        }}
+      />
     </div>
   );
 };

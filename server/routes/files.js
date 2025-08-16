@@ -167,8 +167,8 @@ router.post('/avatar', authenticate, uploadAvatar.single('avatar'), async (req, 
   }
 });
 
-// GET /api/files/avatar/:filename - serve avatar image
-router.get('/avatar/:filename', authenticate, async (req, res) => {
+// GET /api/files/avatar/:filename - serve avatar image (public)
+router.get('/avatar/:filename', async (req, res) => {
   try {
     const filePath = path.join(__dirname, '../uploads/avatars', req.params.filename);
     if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'Avatar not found' });

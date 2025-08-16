@@ -18,9 +18,20 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration
+// CORS configuration (allow common Vite dev ports)
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:5174'
+].filter(Boolean);
+
 const corsOptions = {
-  origin: process.env.CLIENT_URL || 'http://localhost:5173', // Vite default port
+  origin: (origin, callback) => {
+    // allow REST tools or same-origin
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
   credentials: true, // Allow cookies to be sent
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']

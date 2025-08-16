@@ -1,6 +1,16 @@
 import PropTypes from 'prop-types';
 import { DEFAULT_AVATAR } from '../../../assets/defaultAvatar';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+const normalizeSrc = (src) => {
+  if (!src) return DEFAULT_AVATAR;
+  // If src already absolute (http/https/data), return as is
+  if (/^(?:https?:)?\/\//.test(src) || src.startsWith('data:')) return src;
+  // Ensure it has server base
+  return `${API_BASE}${src.startsWith('/') ? src : `/${src}`}`;
+};
+
 const UserAvatar = ({ 
   src, 
   alt = 'User Avatar', 
@@ -25,9 +35,9 @@ const UserAvatar = ({
 
   return (
     <div className={`relative inline-block ${className}`}>
-      {src || DEFAULT_AVATAR ? (
+    {src || DEFAULT_AVATAR ? (
         <img
-          src={src || DEFAULT_AVATAR}
+      src={normalizeSrc(src)}
           alt={alt}
           className={`${sizeClasses[size]} rounded-full object-cover border-2 border-gray-300 hover:border-blue-500 transition-colors duration-300`}
         />
