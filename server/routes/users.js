@@ -9,6 +9,8 @@ router.use(auth.authenticate);
 
 // GET /api/users - Get all users (for testing/user discovery)
 router.get('/', userController.getUsers);
+router.get('/profile', userController.getProfile);
+router.put('/profile', userController.updateProfile);
 
 // GET /api/users/me - Get current user info
 router.get('/me', async (req, res) => {

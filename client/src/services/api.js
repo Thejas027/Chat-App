@@ -180,6 +180,29 @@ class ApiService {
     }
   }
 
+  async uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const token = this.getAuthToken();
+    try {
+      const response = await fetch(`${this.baseURL}/files/avatar`, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
+        body: formData,
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Avatar upload failed');
+      return { success: true, data };
+    } catch (error) {
+      console.error('Avatar upload failed:', error);
+      return { success: false, error: error.message || 'Avatar upload failed' };
+    }
+  }
+
   async findOrCreateConversation(recipientId) {
     return this.makeRequest('/conversations/findOrCreate', {
       method: 'POST',
@@ -219,7 +242,8 @@ export const conversationsAPI = {
 };
 
 export const filesAPI = {
-  uploadFile: (file, conversationId) => apiService.uploadFile(file, conversationId)
+  uploadFile: (file, conversationId) => apiService.uploadFile(file, conversationId),
+  uploadAvatar: (file) => apiService.uploadAvatar(file)
 };
 
 export default apiService;

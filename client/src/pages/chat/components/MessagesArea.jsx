@@ -11,7 +11,7 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
   };
 
   return (
-    <div className={`flex items-end mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+  <div className={`flex items-end mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
       {showAvatar && !isOwn && (
         <UserAvatar
           src={message.sender?.avatar}
@@ -21,11 +21,13 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
         />
       )}
       
-      <div className={`max-w-[70%] px-3 py-2 rounded-2xl shadow-sm ${
-        isOwn
-          ? 'bg-green-500 text-white rounded-br-sm'
-          : 'bg-white text-gray-900 rounded-bl-sm border border-gray-200'
-      }`}>
+      <div
+        className={`max-w-[70%] px-3 py-2 rounded-2xl shadow-sm ${
+          isOwn
+            ? 'bg-blue-600 text-white rounded-br-sm'
+            : 'bg-slate-100 text-slate-900 rounded-bl-sm border border-slate-200'
+        }`}
+      >
         {!isOwn && showAvatar && (
           <p className="text-xs font-semibold mb-1 opacity-70">
             {message.sender?.fullName || 'Unknown User'}
@@ -45,12 +47,12 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
         )}
         
         <div className="flex items-center justify-between mt-1 gap-4">
-          <p className={`text-[10px] ${isOwn ? 'text-green-100' : 'text-gray-500'}`}>
+          <p className={`text-[10px] ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
             {formatTimestamp(message.createdAt)}
           </p>
           
           {isOwn && (
-            <div className={`text-[10px] ${isOwn ? 'text-green-100' : 'text-gray-500'}`}>
+            <div className={`text-[10px] ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
               {message.status === 'sending' && '⏳'}
               {message.status === 'sent' && '✓'}
               {message.status === 'delivered' && '✓✓'}
@@ -101,7 +103,7 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
   return (
     <div className="flex-1 flex flex-col">
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+  <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-500">
@@ -117,7 +119,9 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
         ) : (
           messages.map((message, index) => {
             const prevMessage = messages[index - 1];
-            const isOwn = message.sender?._id === currentUser?._id || message.isOwn;
+            const currentUserId = (currentUser?._id || currentUser?.id || '').toString();
+            const senderId = (typeof message.sender === 'string' ? message.sender : message.sender?._id) || '';
+            const isOwn = (senderId.toString() === currentUserId) || message.isOwn;
             const showAvatar = !prevMessage || prevMessage.sender?._id !== message.sender?._id;
             
             return (

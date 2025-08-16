@@ -221,34 +221,15 @@ const ChatPage = () => {
           </div>
         </div>
         
-        <Tab.Group selectedIndex={activeTab} onChange={setActiveTab}>
-          <Tab.List className="flex border-b">
-            <Tab className={({ selected }) => classNames('w-full py-2.5 text-sm leading-5 font-medium text-blue-700', 'focus:outline-none', selected ? 'bg-white border-b-2 border-blue-500' : 'text-gray-500 hover:bg-gray-100')}>
-              Chats
-            </Tab>
-            <Tab className={({ selected }) => classNames('w-full py-2.5 text-sm leading-5 font-medium text-blue-700', 'focus:outline-none', selected ? 'bg-white border-b-2 border-blue-500' : 'text-gray-500 hover:bg-gray-100')}>
-              Users
-            </Tab>
-          </Tab.List>
-          <Tab.Panels className="flex-1 overflow-y-auto">
-            <Tab.Panel>
-              <ConversationsList
-                conversations={conversations}
-                selectedConversation={selectedConversation}
-                onSelectConversation={handleSelectConversation}
-                loading={loading}
-                currentUserId={user.id}
-              />
-            </Tab.Panel>
-            <Tab.Panel>
-              <UsersList
-                users={users}
-                onSelectUser={handleSelectUser}
-                loading={usersLoading}
-              />
-            </Tab.Panel>
-          </Tab.Panels>
-        </Tab.Group>
+        <div className="flex-1 overflow-y-auto">
+          <ConversationsList
+            conversations={conversations}
+            selectedConversation={selectedConversation}
+            onSelectConversation={handleSelectConversation}
+            loading={loading}
+            currentUserId={user.id}
+          />
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col">

@@ -2,12 +2,15 @@ import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Button } from '../../../components/ui';
 import { showError } from '../../../utils/toast';
+import { filesAPI, usersAPI } from '../../../services/api';
 
 const MessageInput = ({ onSendMessage, disabled = false }) => {
   const [message, setMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const [showEmojis, setShowEmojis] = useState(false);
+  const avatarInputRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,6 +60,20 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
 
   const handleAttachClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleEmojiPick = (emoji) => {
+    setMessage((m) => `${m}${emoji}`);
+    setShowEmojis(false);
+  };
+
+  const handleAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await filesAPI.uploadFile(file, 'avatar'); // fallback route will ignore conversationId
+      // Prefer dedicated avatar endpoint if available
+    } catch {}
   };
 
   return (
@@ -126,6 +143,7 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
           <button
             type="button"
             disabled={disabled}
+            onClick={() => setShowEmojis((s) => !s)}
             className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-200 transition-colors duration-200 disabled:opacity-50"
             title="Add emoji"
           >
@@ -133,6 +151,16 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
+
+          {showEmojis && (
+            <div className="absolute bottom-14 right-0 bg-white border border-gray-200 rounded-xl p-2 shadow-lg grid grid-cols-8 gap-1 text-xl max-w-xs">
+              {['😀','😁','😂','🤣','😊','😍','😎','🤩','😘','😉','😇','🥳','🤔','😴','😜','👍','🙏','👏','🔥','❤️'].map((e) => (
+                <button key={e} type="button" onClick={() => handleEmojiPick(e)} className="hover:scale-110 transition-transform">
+                  {e}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Send Button */}
@@ -152,6 +180,9 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
           )}
         </Button>
       </form>
+
+  {/* Hidden Avatar Input (placeholder for profile UI trigger) */}
+  <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
     </div>
   );
 };

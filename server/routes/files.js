@@ -11,7 +11,7 @@ const router = express.Router();
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads');
+  const uploadDir = path.join(__dirname, '../uploads');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -125,3 +125,56 @@ router.delete('/:filename', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+
+// ---- Avatar upload specific endpoints ----
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/avatars');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const avatarFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  if (mimetype && extname) return cb(null, true);
+  cb(new Error('Only image files are allowed for avatar'));
+};
+
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: avatarFilter
+});
+
+// POST /api/files/avatar - upload user avatar
+router.post('/avatar', authenticate, uploadAvatar.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const url = `/api/files/avatar/${req.file.filename}`;
+    res.json({ success: true, url });
+  } catch (err) {
+    console.error('Avatar upload error:', err);
+    res.status(500).json({ message: 'Error uploading avatar' });
+  }
+});
+
+// GET /api/files/avatar/:filename - serve avatar image
+router.get('/avatar/:filename', authenticate, async (req, res) => {
+  try {
+    const filePath = path.join(__dirname, '../uploads/avatars', req.params.filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'Avatar not found' });
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('Avatar fetch error:', err);
+    res.status(500).json({ message: 'Error fetching avatar' });
+  }
+});
