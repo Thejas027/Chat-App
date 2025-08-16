@@ -148,11 +148,12 @@ const ChatPage = () => {
 
   // Users list removed from UI; starting new chats can be reintroduced via a modal later
 
-  const handleSendMessage = async (content) => {
+  const handleSendMessage = async (content, attachments = []) => {
     if (!selectedConversation) return;
     const messageData = {
       conversationId: selectedConversation._id,
       content,
+      attachments,
     };
     try {
       if (socket && isConnected) {
@@ -176,8 +177,8 @@ const ChatPage = () => {
   const selectedUser = selectedConversation?.participants.find(p => p._id !== user.id);
 
   return (
-    <div className="h-screen flex bg-gray-100">
-      <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
+  <div className="h-screen flex bg-gray-100">
+  <div className="w-96 h-full bg-white border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -209,21 +210,21 @@ const ChatPage = () => {
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto">
+  <div className="flex-1 min-h-0">
           <ConversationsList
             conversations={conversations}
             selectedConversation={selectedConversation}
             onSelectConversation={handleSelectConversation}
             loading={loading}
-            currentUserId={user.id}
+            currentUserId={user?._id || user?.id}
           />
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col">
+  <div className="flex-1 min-h-0 flex flex-col">
         {selectedConversation ? (
           <>
-            <div className="p-4 bg-white border-b flex items-center justify-between">
+    <div className="p-4 bg-white border-b flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center space-x-4">
                 {selectedUser && (
                   <UserAvatar

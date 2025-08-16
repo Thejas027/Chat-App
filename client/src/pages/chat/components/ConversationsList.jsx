@@ -39,11 +39,12 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-4 border-b border-gray-200">
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="p-4 border-b border-gray-200 sticky top-0 z-10 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
       </div>
       
+  <div className="flex-1 min-h-0 overflow-y-auto">
       {conversationsArray.length === 0 ? (
         <div className="p-8 text-center text-gray-500">
           <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
@@ -104,6 +105,7 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
           })}
         </div>
       )}
+      </div>
     </div>
   );
 };

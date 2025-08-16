@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import UserAvatar from './UserAvatar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
@@ -67,14 +67,35 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
 
 const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser }) => {
   const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  // Track scroll to toggle scroll-to-bottom button
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollDown(distanceFromBottom > 120);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // Auto-scroll on new messages only if user is near bottom
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 200) {
+      scrollToBottom('auto');
+    }
+  }, [messages, scrollToBottom]);
 
   if (!selectedConversation) {
     return (
@@ -101,9 +122,15 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
   }
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 min-h-0 flex flex-col relative">
       {/* Messages Container */}
-  <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth"
+        style={{
+          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,1) 24px, rgba(0,0,0,1) calc(100% - 24px), rgba(0,0,0,0.12))'
+        }}
+      >
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-500">
@@ -137,6 +164,20 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollDown && (
+        <button
+          onClick={() => scrollToBottom()}
+          className="absolute bottom-4 right-4 p-2 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          aria-label="Scroll to latest message"
+          title="Scroll to latest message"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 };

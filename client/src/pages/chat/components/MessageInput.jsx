@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Button } from '../../../components/ui';
 import { showError } from '../../../utils/toast';
@@ -38,6 +38,16 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
       handleSubmit(e);
     }
   };
+
+  // Auto-grow textarea height up to a cap
+  const textAreaRef = useRef(null);
+  useEffect(() => {
+    const el = textAreaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const max = 160; // px
+    el.style.height = Math.min(el.scrollHeight, max) + 'px';
+  }, [message]);
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
@@ -126,6 +136,7 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
         {/* Message Input */}
         <div className="flex-1 relative">
           <textarea
+            ref={textAreaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
