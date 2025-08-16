@@ -16,7 +16,7 @@ const getMessages = async (req, res) => {
       });
     }
 
-    if (!conversation.participants.includes(req.user._id)) {
+  if (!conversation.participants.some(p => p.toString() === req.user._id.toString())) {
       return res.status(403).json({
         success: false,
         message: 'You are not a participant in this conversation'
@@ -36,7 +36,7 @@ const getMessages = async (req, res) => {
     messages.reverse();
 
     // Get total count for pagination
-    const totalMessages = await Message.countDocuments({ conversation: conversationId });
+  const totalMessages = await Message.countDocuments({ conversation: conversationId });
 
     res.json({
       success: true,
@@ -84,7 +84,7 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    if (!conversation.participants.includes(req.user._id)) {
+  if (!conversation.participants.some(p => p.toString() === req.user._id.toString())) {
       return res.status(403).json({
         success: false,
         message: 'You are not a participant in this conversation'
@@ -176,8 +176,8 @@ const updateMessageStatus = async (req, res) => {
 
     // Update message status
     if (status === 'read') {
-      if (!message.readBy.includes(req.user._id)) {
-        message.readBy.push(req.user._id);
+      if (!message.readBy.some(r => r.user.toString() === req.user._id.toString())) {
+        message.readBy.push({ user: req.user._id, readAt: new Date() });
       }
       message.readAt = new Date();
     }

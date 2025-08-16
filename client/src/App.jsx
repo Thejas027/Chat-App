@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { SocketProvider } from "./context/SocketContext";
 import LoginPage from "./pages/authentication/LoginPage";
 import RegisterPage from "./pages/authentication/RegisterPage";
 import ChatPage from "./pages/chat/ChatPage";
@@ -47,93 +48,95 @@ const PublicRoute = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <ChatPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <LoginPage />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicRoute>
-              <RegisterPage />
-            </PublicRoute>
-          }
-        />
+      <SocketProvider>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <LoginPage />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicRoute>
+                <RegisterPage />
+              </PublicRoute>
+            }
+          />
+          
+          {/* Legacy route redirects */}
+          <Route path="/users/sign_in" element={<Navigate to="/login" replace />} />
+          <Route path="/users/sign_up" element={<Navigate to="/register" replace />} />
+          
+          {/* Catch all - redirect to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
         
-        {/* Legacy route redirects */}
-        <Route path="/users/sign_in" element={<Navigate to="/login" replace />} />
-        <Route path="/users/sign_up" element={<Navigate to="/register" replace />} />
-        
-        {/* Catch all - redirect to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      
-      {/* Toast Notifications */}
-      <Toaster
-        position="top-right"
-        reverseOrder={false}
-        gutter={8}
-        containerClassName=""
-        containerStyle={{}}
-        toastOptions={{
-          // Define default options
-          className: '',
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-            fontSize: '14px',
-            borderRadius: '8px',
-            padding: '12px 16px',
-          },
-          // Default options for specific types
-          success: {
-            duration: 3000,
-            theme: {
-              primary: 'green',
-              secondary: 'black',
-            },
+        {/* Toast Notifications */}
+        <Toaster
+          position="top-right"
+          reverseOrder={false}
+          gutter={8}
+          containerClassName=""
+          containerStyle={{}}
+          toastOptions={{
+            // Define default options
+            className: '',
+            duration: 4000,
             style: {
-              background: '#10b981',
+              background: '#363636',
               color: '#fff',
+              fontSize: '14px',
+              borderRadius: '8px',
+              padding: '12px 16px',
             },
-            iconTheme: {
-              primary: '#fff',
-              secondary: '#10b981',
+            // Default options for specific types
+            success: {
+              duration: 3000,
+              theme: {
+                primary: 'green',
+                secondary: 'black',
+              },
+              style: {
+                background: '#10b981',
+                color: '#fff',
+              },
+              iconTheme: {
+                primary: '#fff',
+                secondary: '#10b981',
+              },
             },
-          },
-          error: {
-            duration: 5000,
-            style: {
-              background: '#ef4444',
-              color: '#fff',
+            error: {
+              duration: 5000,
+              style: {
+                background: '#ef4444',
+                color: '#fff',
+              },
+              iconTheme: {
+                primary: '#fff',
+                secondary: '#ef4444',
+              },
             },
-            iconTheme: {
-              primary: '#fff',
-              secondary: '#ef4444',
+            loading: {
+              style: {
+                background: '#3b82f6',
+                color: '#fff',
+              },
             },
-          },
-          loading: {
-            style: {
-              background: '#3b82f6',
-              color: '#fff',
-            },
-          },
-        }}
-      />
+          }}
+        />
+      </SocketProvider>
     </AuthProvider>
   );
 }

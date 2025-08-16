@@ -107,7 +107,10 @@ class SocketManager {
         
         // Validate conversation exists and user is participant
         const conversation = await Conversation.findById(conversationId);
-        if (!conversation || !conversation.participants.includes(socket.userId)) {
+        if (
+          !conversation ||
+          !conversation.participants.some((p) => p.toString() === socket.userId)
+        ) {
           socket.emit('message_error', { error: 'Invalid conversation or unauthorized' });
           return;
         }

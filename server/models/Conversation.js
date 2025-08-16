@@ -38,6 +38,12 @@ const conversationSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+
+  // Deterministic key for private conversations to enforce uniqueness
+  participantsKey: {
+    type: String,
+    index: true
+  },
   
   // Last message reference
   lastMessage: {
@@ -61,6 +67,19 @@ const conversationSchema = new mongoose.Schema({
 conversationSchema.pre('save', function(next) {
   if (this.isModified('lastMessage')) {
     this.lastActivity = new Date();
+  }
+  next();
+});
+
+// Compute participantsKey for private conversations
+conversationSchema.pre('validate', function(next) {
+  try {
+    if (this.type === 'private' && Array.isArray(this.participants) && this.participants.length === 2) {
+      const ids = this.participants.map((id) => id.toString()).sort();
+      this.participantsKey = ids.join(':');
+    }
+  } catch (e) {
+    // ignore
   }
   next();
 });
@@ -98,5 +117,10 @@ conversationSchema.statics.findPrivateConversation = function(user1Id, user2Id) 
 conversationSchema.index({ participants: 1 });
 conversationSchema.index({ lastActivity: -1 });
 conversationSchema.index({ type: 1 });
+// Ensure one private conversation per user pair
+conversationSchema.index(
+  { type: 1, participantsKey: 1 },
+  { unique: true, partialFilterExpression: { type: 'private' } }
+);
 
 module.exports = mongoose.model('Conversation', conversationSchema);

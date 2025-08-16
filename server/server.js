@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const connectDB = require('./config/database');
 const SocketManager = require('./socket/SocketManager');
+const userRoutes = require('./routes/users');
 
 // Load environment variables
 dotenv.config();
@@ -15,7 +16,7 @@ connectDB();
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
@@ -33,10 +34,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/users'));
+app.use('/api/users', userRoutes);
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/messages', require('./routes/messages'));
-// app.use('/api/files', require('./routes/files'));
+app.use('/api/files', require('./routes/files'));
 
 // Basic route
 app.get('/', (req, res) => {

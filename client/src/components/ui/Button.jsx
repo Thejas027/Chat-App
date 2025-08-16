@@ -9,6 +9,8 @@ const Button = ({
   onClick,
   type = 'button',
   className = '',
+  leftIcon,
+  rightIcon,
   ...props 
 }) => {
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -37,7 +39,7 @@ const Button = ({
       onClick={onClick}
       {...props}
     >
-      {loading && (
+      {loading ? (
         <svg
           className="w-4 h-4 mr-2 animate-spin"
           xmlns="http://www.w3.org/2000/svg"
@@ -58,8 +60,11 @@ const Button = ({
             d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
           ></path>
         </svg>
+      ) : (
+        leftIcon && <span className="mr-2">{leftIcon}</span>
       )}
       {children}
+      {rightIcon && <span className="ml-2">{rightIcon}</span>}
     </button>
   );
 };
@@ -72,7 +77,9 @@ Button.propTypes = {
   loading: PropTypes.bool,
   onClick: PropTypes.func,
   type: PropTypes.oneOf(['button', 'submit', 'reset']),
-  className: PropTypes.string
+  className: PropTypes.string,
+  leftIcon: PropTypes.node,
+  rightIcon: PropTypes.node,
 };
 
 export default Button;

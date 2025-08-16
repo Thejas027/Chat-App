@@ -8,7 +8,9 @@ const {
   updateGroupConversation,
   addParticipant,
   removeParticipant,
-  leaveConversation
+  leaveConversation,
+  getMessagesForConversation,
+  findOrCreateConversation
 } = require('../controllers/conversationController');
 const { authenticate } = require('../middleware/auth');
 const {
@@ -57,7 +59,7 @@ router.put('/:conversationId/read', async (req, res) => {
       return res.status(404).json({ message: 'Conversation not found' });
     }
 
-    if (!conversation.participants.includes(userId)) {
+  if (!conversation.participants.some(p => p.toString() === userId.toString())) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -69,12 +71,8 @@ router.put('/:conversationId/read', async (req, res) => {
         readBy: { $not: { $elemMatch: { user: userId } } }
       },
       { 
-        $push: { 
-          readBy: { 
-            user: userId, 
-            readAt: new Date() 
-          } 
-        } 
+        $push: { readBy: { user: userId, readAt: new Date() } },
+        $set: { status: 'read' }
       }
     );
 
@@ -84,5 +82,11 @@ router.put('/:conversationId/read', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// GET /api/conversations/:id/messages - Get messages for a conversation
+router.get('/:id/messages', getMessagesForConversation);
+
+// POST /api/conversations/findOrCreate - Find or create a conversation
+router.post('/findOrCreate', findOrCreateConversation);
 
 module.exports = router;

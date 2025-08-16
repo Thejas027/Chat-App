@@ -29,7 +29,7 @@ const getConversations = async (req, res) => {
         const unreadCount = await Message.countDocuments({
           conversation: conversation._id,
           sender: { $ne: req.user._id },
-          readBy: { $ne: req.user._id }
+          readBy: { $not: { $elemMatch: { user: req.user._id } } }
         });
 
         // Get conversation name and avatar
@@ -114,7 +114,7 @@ const getConversation = async (req, res) => {
       });
     }
 
-    // Add display info
+  // Add display info
     let displayName = '';
     let displayAvatar = '';
     
@@ -129,12 +129,20 @@ const getConversation = async (req, res) => {
       displayAvatar = conversation.avatar || '';
     }
 
+    // Compute unread count for this conversation
+    const unreadCount = await Message.countDocuments({
+      conversation: conversation._id,
+      sender: { $ne: req.user._id },
+      readBy: { $not: { $elemMatch: { user: req.user._id } } }
+    });
+
     res.json({
       success: true,
       data: {
         ...conversation.toObject(),
         displayName,
-        displayAvatar
+        displayAvatar,
+        unreadCount
       }
     });
 
@@ -582,6 +590,124 @@ const leaveConversation = async (req, res) => {
   }
 };
 
+// @desc    Get messages for a conversation
+// @route   GET /api/conversations/:id/messages
+// @access  Private
+const getMessagesForConversation = async (req, res) => {
+  try {
+    const { id: conversationId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+
+    // Find the conversation
+    const conversation = await Conversation.findById(conversationId)
+      .populate('participants', 'fullName email avatar')
+      .lean();
+
+    if (!conversation) {
+      return res.status(404).json({ message: 'Conversation not found' });
+    }
+
+    // Check if the user is a participant of the conversation
+    if (!conversation.participants.some(p => p._id.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Get messages for the conversation
+    const messages = await Message.find({ conversation: conversationId })
+      .populate('sender', 'fullName avatar')
+      .sort({ createdAt: 1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .lean();
+
+    // Mark messages as read by the user (only those not yet marked)
+    await Message.updateMany(
+      {
+        conversation: conversationId,
+        sender: { $ne: req.user._id },
+        readBy: { $not: { $elemMatch: { user: req.user._id } } }
+      },
+      {
+        $push: { readBy: { user: req.user._id, readAt: new Date() } },
+        $set: { status: 'read' }
+      }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        messages,
+        conversation,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(await Message.countDocuments({ conversation: conversationId }) / limit),
+          totalMessages: await Message.countDocuments({ conversation: conversationId }),
+          limit: parseInt(limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Find or create a conversation with another user
+// @route   POST /api/conversations/findOrCreate
+// @access  Private
+const findOrCreateConversation = async (req, res) => {
+  const { recipientId } = req.body;
+  const userId = req.user.id;
+
+  if (!recipientId) {
+    return res.status(400).json({ message: 'Recipient ID is required' });
+  }
+
+  try {
+    // Find an existing private conversation between the two users
+    const ids = [userId.toString(), recipientId.toString()].sort();
+    const participantsKey = ids.join(':');
+
+    let conversation = await Conversation.findOne({
+      type: 'private',
+      participantsKey,
+    })
+      .populate('participants', '-password')
+      .populate({
+        path: 'lastMessage',
+        populate: { path: 'sender', select: 'fullName avatar' },
+      });
+
+    // If no conversation exists, create a new one
+    if (!conversation) {
+      // Upsert pattern to avoid race duplicates
+      await Conversation.updateOne(
+        { type: 'private', participantsKey },
+        { 
+          $setOnInsert: {
+            participants: [userId, recipientId],
+            type: 'private',
+            participantsKey
+          }
+        },
+        { upsert: true }
+      );
+      conversation = await Conversation.findOne({ type: 'private', participantsKey })
+        .populate('participants', '-password')
+        .populate({
+          path: 'lastMessage',
+          populate: { path: 'sender', select: 'fullName avatar' }
+        });
+    }
+
+    res.status(200).json(conversation);
+  } catch (error) {
+    console.error('Error finding or creating conversation:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getConversations,
   getConversation,
@@ -590,5 +716,7 @@ module.exports = {
   updateGroupConversation,
   addParticipant,
   removeParticipant,
-  leaveConversation
+  leaveConversation,
+  getMessagesForConversation,
+  findOrCreateConversation
 };

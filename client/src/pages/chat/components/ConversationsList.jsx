@@ -2,7 +2,10 @@ import PropTypes from 'prop-types';
 import UserAvatar from './UserAvatar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
-const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false }) => {
+const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false, currentUserId }) => {
+  // Ensure conversations is always an array
+  const conversationsArray = Array.isArray(conversations) ? conversations : [];
+  
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
     
@@ -21,7 +24,7 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
   };
 
   const getOtherParticipant = (conversation, currentUserId) => {
-    return conversation.participants?.find(p => p._id !== currentUserId) || {
+    return conversation.participants?.find(p => (p._id || p)?.toString() !== (currentUserId || '').toString()) || {
       fullName: 'Unknown User',
       avatar: null
     };
@@ -41,7 +44,7 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
         <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
       </div>
       
-      {conversations.length === 0 ? (
+      {conversationsArray.length === 0 ? (
         <div className="p-8 text-center text-gray-500">
           <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -53,8 +56,8 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
         </div>
       ) : (
         <div className="divide-y divide-gray-100">
-          {conversations.map((conversation) => {
-            const otherParticipant = getOtherParticipant(conversation, conversation.currentUserId);
+          {conversationsArray.map((conversation) => {
+            const otherParticipant = getOtherParticipant(conversation, currentUserId);
             
             return (
               <div
@@ -109,7 +112,8 @@ ConversationsList.propTypes = {
   conversations: PropTypes.array,
   selectedConversation: PropTypes.object,
   onSelectConversation: PropTypes.func.isRequired,
-  loading: PropTypes.bool
+  loading: PropTypes.bool,
+  currentUserId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
 };
 
 export default ConversationsList;

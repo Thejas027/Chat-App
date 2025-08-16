@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { conversationsAPI } from '../services/api';
-import { toast } from '../utils/toast';
+import { showError } from '../utils/toast';
 
 export const useChat = (conversationId, currentUser) => {
   const [messages, setMessages] = useState([]);
@@ -26,11 +26,11 @@ export const useChat = (conversationId, currentUser) => {
         if (response.success) {
           setMessages(response.data || []);
         } else {
-          toast.error('Failed to load messages');
+          showError('Failed to load messages');
         }
       } catch (error) {
         console.error('Error loading messages:', error);
-        toast.error('Failed to load messages');
+        showError('Failed to load messages');
       } finally {
         setLoading(false);
       }
@@ -158,14 +158,14 @@ export const useChat = (conversationId, currentUser) => {
       } else {
         // Remove temp message on error
         setMessages(prev => prev.filter(msg => msg._id !== tempMessage._id));
-        toast.error('Failed to send message');
+        showError('Failed to send message');
         return false;
       }
     } catch (error) {
       console.error('Error sending message:', error);
       // Remove temp message on error
       setMessages(prev => prev.filter(msg => !msg._id.toString().startsWith('temp-')));
-      toast.error('Failed to send message');
+      showError('Failed to send message');
       return false;
     } finally {
       setSendingMessage(false);

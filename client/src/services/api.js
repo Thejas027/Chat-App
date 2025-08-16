@@ -93,6 +93,10 @@ class ApiService {
     return this.makeRequest('/conversations');
   }
 
+  async getConversation(conversationId) {
+    return this.makeRequest(`/conversations/${conversationId}`);
+  }
+
   async createPrivateConversation(participantId) {
     return this.makeRequest('/conversations/private', {
       method: 'POST',
@@ -175,6 +179,13 @@ class ApiService {
       };
     }
   }
+
+  async findOrCreateConversation(recipientId) {
+    return this.makeRequest('/conversations/findOrCreate', {
+      method: 'POST',
+      body: JSON.stringify({ recipientId })
+    });
+  }
 }
 
 const apiService = new ApiService();
@@ -195,6 +206,7 @@ export const usersAPI = {
 
 export const conversationsAPI = {
   getConversations: () => apiService.getConversations(),
+  getConversation: (conversationId) => apiService.getConversation(conversationId),
   createPrivateConversation: (participantId) => apiService.createPrivateConversation(participantId),
   createGroupConversation: (participants, name) => apiService.createGroupConversation(participants, name),
   markAsRead: (conversationId) => apiService.markAsRead(conversationId),
@@ -202,7 +214,8 @@ export const conversationsAPI = {
   sendMessage: (messageData) => apiService.sendMessage(messageData),
   deleteMessage: (messageId) => apiService.deleteMessage(messageId),
   editMessage: (messageId, content) => apiService.editMessage(messageId, content),
-  searchMessages: (conversationId, query) => apiService.searchMessages(conversationId, query)
+  searchMessages: (conversationId, query) => apiService.searchMessages(conversationId, query),
+  findOrCreateConversation: (recipientId) => apiService.findOrCreateConversation(recipientId)
 };
 
 export const filesAPI = {

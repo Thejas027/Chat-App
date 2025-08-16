@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Button } from '../../../components/ui';
-import { toast } from '../../../utils/toast';
+import { showError } from '../../../utils/toast';
 
 const MessageInput = ({ onSendMessage, disabled = false }) => {
   const [message, setMessage] = useState('');
@@ -23,7 +23,7 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
       setSelectedFiles([]);
     } catch (error) {
       console.error('Error sending message:', error);
-      toast.error('Failed to send message');
+      showError('Failed to send message');
     } finally {
       setIsUploading(false);
     }
@@ -41,7 +41,7 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
     const validFiles = files.filter(file => {
       // Limit file size to 10MB
       if (file.size > 10 * 1024 * 1024) {
-        toast.error(`File ${file.name} is too large. Maximum size is 10MB.`);
+        showError(`File ${file.name} is too large. Maximum size is 10MB.`);
         return false;
       }
       return true;
