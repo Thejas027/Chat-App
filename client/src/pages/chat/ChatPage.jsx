@@ -62,14 +62,14 @@ const ChatPage = () => {
           return list.map((conv) =>
             conv._id === message.conversation
               ? {
-                  ...conv,
-                  lastMessage: message.content,
-                  lastMessageTime: message.createdAt,
-                  unreadCount:
-                    conv._id === selectedConversation?._id
-                      ? 0
-                      : (conv.unreadCount || 0) + 1,
-                }
+                ...conv,
+                lastMessage: message.content,
+                lastMessageTime: message.createdAt,
+                unreadCount:
+                  conv._id === selectedConversation?._id
+                    ? 0
+                    : (conv.unreadCount || 0) + 1,
+              }
               : conv
           );
         }
@@ -177,16 +177,16 @@ const ChatPage = () => {
   const selectedUser = selectedConversation?.participants.find(p => p._id !== user.id);
 
   return (
-  <div className="h-screen flex bg-gray-100">
-  <div className="w-96 h-full bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b">
+    <div className="h-screen flex bg-gray-100">
+      <div className="w-96 h-full bg-white border-r border-gray-200 flex flex-col">
+        <div className="p-2 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="relative">
                 <UserAvatar src={user?.avatar} alt={user?.fullName} size="large" status="online" />
                 <button
                   onClick={() => setProfileOpen(true)}
-                  className="absolute -bottom-1 -right-1 p-1 rounded-full bg-white text-gray-700 shadow border hover:bg-gray-50"
+                  className="absolute hover:cursor-pointer -bottom-1 -right-1 p-1 rounded-full bg-white text-gray-700 shadow border hover:bg-gray-50"
                   title="Edit profile"
                   aria-label="Edit profile"
                 >
@@ -202,15 +202,15 @@ const ChatPage = () => {
             </div>
             <div className="flex items-center gap-2">
               <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-200" title="Logout">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
               </button>
             </div>
           </div>
         </div>
-        
-  <div className="flex-1 min-h-0">
+
+        <div className="flex-1 min-h-0">
           <ConversationsList
             conversations={conversations}
             selectedConversation={selectedConversation}
@@ -221,10 +221,10 @@ const ChatPage = () => {
         </div>
       </div>
 
-  <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col">
         {selectedConversation ? (
           <>
-    <div className="p-4 bg-white border-b flex items-center justify-between sticky top-0 z-10">
+            <div className="p-5 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center space-x-4">
                 {selectedUser && (
                   <UserAvatar
