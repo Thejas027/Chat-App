@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { API_BASE_URL } from '../../../services/api';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import UserAvatar from './UserAvatar';
+import { showChoiceToast, showInputToast } from '../../../utils/toastInteractive';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
 const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, onEdit, onDelete, onJump }) => {
@@ -87,11 +88,21 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
         </div>
         <div className="mt-1 -mb-1 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
           <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => onReply?.(message)}>Reply</button>
-          {isOwn && <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => {
-            const newText = prompt('Edit message', message.content);
+          {isOwn && <button className="text-xs text-gray-500 hover:text-gray-700" onClick={async () => {
+            const newText = await showInputToast('Edit message', { initialValue: message.content || '' });
             if (newText != null) onEdit?.(message, newText);
           }}>Edit</button>}
-          <button className="text-xs text-red-500 hover:text-red-600" onClick={() => onDelete?.(message, isOwn ? (confirm('Delete for everyone? OK=Everyone, Cancel=Me only') ? 'everyone' : 'me') : 'me')}>Delete</button>
+          <button className="text-xs text-red-500 hover:text-red-600" onClick={async () => {
+            let scope = 'me';
+            if (isOwn) {
+              const choice = await showChoiceToast('Delete message for…', [
+                { label: 'Me only', value: 'me' },
+                { label: 'Everyone', value: 'everyone', className: 'bg-red-600 text-white hover:bg-red-700' },
+              ]);
+              scope = choice || 'me';
+            }
+            onDelete?.(message, scope);
+          }}>Delete</button>
           <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => navigator.clipboard.writeText(message.content || '')}>Copy</button>
         </div>
       </div>
