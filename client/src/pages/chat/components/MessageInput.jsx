@@ -99,7 +99,9 @@ const MessageInput = ({ onSendMessage, disabled = false, onStartTyping, onStopTy
           <div className="w-1.5 rounded bg-blue-500 h-6 mt-1" />
           <div className="min-w-0 flex-1">
             <div className="text-xs text-gray-600">Replying to {replyTo.sender?.fullName || 'message'}</div>
-            <div className="text-sm text-gray-800 truncate max-w-[420px]">{replyTo.content || (replyTo.attachment?.filename || 'Attachment')}</div>
+            {(replyTo.content || replyTo.attachment?.filename) ? (
+              <div className="text-sm text-gray-800 truncate max-w-[420px]">{replyTo.content || replyTo.attachment?.filename}</div>
+            ) : null}
           </div>
           <button onClick={onCancelReply} className="text-gray-500 hover:text-gray-700" aria-label="Cancel reply">×</button>
         </div>

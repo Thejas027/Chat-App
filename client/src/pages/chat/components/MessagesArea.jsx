@@ -43,34 +43,36 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
             className={`mb-2 block text-left text-xs px-2 py-1 rounded ${isOwn ? 'bg-white/10' : 'bg-black/5'} hover:opacity-90`}
           >
             <div className="text-[10px] opacity-70">Replying to {message.replyTo?.sender?.fullName || 'message'}</div>
-            <div className="truncate max-w-[240px]">{message.replyTo?.content || message.replyTo?.attachment?.filename || 'Attachment'}</div>
+            {(message.replyTo?.content || message.replyTo?.attachment?.filename) ? (
+              <div className="truncate max-w-[240px]">{message.replyTo?.content || message.replyTo?.attachment?.filename}</div>
+            ) : null}
           </button>
         )}
         
   <p className="text-sm break-words whitespace-pre-wrap">{message.content}{message.isEdited ? <span className="ml-1 text-[10px] opacity-70">(edited)</span> : null}</p>
         
-        {message.attachment && (
-          <div className="mt-2">
-            {(() => {
-              const att = message.attachment;
-              const rel = att.url || att.path || att.fileUrl;
-              const src = rel?.startsWith('http') ? rel : (rel ? `${API_BASE_URL}${rel}` : rel);
-              const isImage = (att.mimetype || att.mimeType || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(src || '');
-              if (isImage && src) {
-                return <img src={src} alt={att.filename || 'image'} className="max-w-[240px] rounded-md border border-black/5" />;
-              }
-              return (
+        {(() => {
+          const att = message.attachment || null;
+          const rel = att && (att.url || att.path || att.fileUrl);
+          const src = rel?.startsWith('http') ? rel : (rel ? `${API_BASE_URL}${rel}` : null);
+          if (!src) return null; // Do not render attachment UI without a real file URL
+          const isImage = (att.mimetype || att.mimeType || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(src || '');
+          return (
+            <div className="mt-2">
+              {isImage ? (
+                <img src={src} alt={att.filename || 'image'} className="max-w-[240px] rounded-md border border-black/5" />
+              ) : (
                 <div className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full bg-black/10">
                   <span className="opacity-80">📎</span>
                   <a href={src} target="_blank" rel="noreferrer" className="underline">
-                    {att.filename || 'attachment'}
+                    {att.filename || 'file'}
                   </a>
                   {att.size ? <span className="opacity-60">({Math.ceil(att.size/1024)} KB)</span> : null}
                 </div>
-              );
-            })()}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
         
         <div className="flex items-center justify-between mt-1 gap-4">
           <p className={`text-[10px] ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
