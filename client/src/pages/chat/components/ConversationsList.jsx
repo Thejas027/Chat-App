@@ -1,10 +1,12 @@
 import PropTypes from 'prop-types';
+import { useMemo, useState } from 'react';
 import UserAvatar from './UserAvatar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
-const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false, currentUserId }) => {
+const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false, currentUserId, onNewChat }) => {
   // Ensure conversations is always an array
   const conversationsArray = Array.isArray(conversations) ? conversations : [];
+  const [query, setQuery] = useState('');
   
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
@@ -30,6 +32,17 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
     };
   };
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return conversationsArray;
+    return conversationsArray.filter((conversation) => {
+      const other = getOtherParticipant(conversation, currentUserId);
+      const name = (other.fullName || '').toLowerCase();
+      const last = (conversation.lastMessage || '').toLowerCase();
+      return name.includes(q) || last.includes(q);
+    });
+  }, [conversationsArray, currentUserId, query]);
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -41,23 +54,49 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="p-4 border-b border-gray-200 sticky top-0 z-10 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold text-gray-800">Messages</h2>
+            <p className="text-xs text-gray-500 sm:hidden">Tap a chat to open</p>
+          </div>
+          <button
+            type="button"
+            onClick={onNewChat}
+            className="p-2 rounded-full hover:bg-gray-100"
+            aria-label="Start new chat"
+            title="New chat"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
+        {/* Search */}
+        <div className="mt-3">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search chats..."
+            className="w-full px-3 py-2 rounded-lg bg-gray-100 border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
       </div>
       
   <div className="flex-1 min-h-0 overflow-y-auto">
-      {conversationsArray.length === 0 ? (
+      {(filtered || []).length === 0 ? (
         <div className="p-8 text-center text-gray-500">
           <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.418 8-9 8a9.004 9.004 0 01-8.716-6.747M3 12a9 9 0 1118 0z" />
             </svg>
           </div>
-          <p className="text-sm">No conversations yet</p>
-          <p className="text-xs text-gray-400 mt-1">Start a new conversation to get chatting!</p>
+          <p className="text-sm">No conversations found</p>
+          <p className="text-xs text-gray-400 mt-1">Try a different search or start a new chat</p>
         </div>
       ) : (
         <div className="divide-y divide-gray-100">
-          {conversationsArray.map((conversation) => {
+          {filtered.map((conversation) => {
             const otherParticipant = getOtherParticipant(conversation, currentUserId);
             
             return (
@@ -115,7 +154,8 @@ ConversationsList.propTypes = {
   selectedConversation: PropTypes.object,
   onSelectConversation: PropTypes.func.isRequired,
   loading: PropTypes.bool,
-  currentUserId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+  currentUserId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onNewChat: PropTypes.func,
 };
 
 export default ConversationsList;

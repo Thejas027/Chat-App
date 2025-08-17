@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { API_BASE_URL } from '../../../services/api';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import UserAvatar from './UserAvatar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
@@ -36,13 +37,26 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
         
         <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
         
-        {message.attachments && message.attachments.length > 0 && (
-          <div className="mt-2 space-y-1">
-            {message.attachments.map((attachment, index) => (
-              <div key={index} className="text-xs opacity-75">
-                📎 {attachment.filename}
-              </div>
-            ))}
+        {message.attachment && (
+          <div className="mt-2">
+            {(() => {
+              const att = message.attachment;
+              const rel = att.url || att.path || att.fileUrl;
+              const src = rel?.startsWith('http') ? rel : (rel ? `${API_BASE_URL}${rel}` : rel);
+              const isImage = (att.mimetype || att.mimeType || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(src || '');
+              if (isImage && src) {
+                return <img src={src} alt={att.filename || 'image'} className="max-w-[240px] rounded-md border border-black/5" />;
+              }
+              return (
+                <div className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full bg-black/10">
+                  <span className="opacity-80">📎</span>
+                  <a href={src} target="_blank" rel="noreferrer" className="underline">
+                    {att.filename || 'attachment'}
+                  </a>
+                  {att.size ? <span className="opacity-60">({Math.ceil(att.size/1024)} KB)</span> : null}
+                </div>
+              );
+            })()}
           </div>
         )}
         
@@ -65,7 +79,7 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
   );
 };
 
-const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser }) => {
+const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [] }) => {
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -121,6 +135,29 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
     );
   }
 
+  const sameSender = (a, b) => {
+    if (!a || !b) return false;
+    const aid = (typeof a.sender === 'string' ? a.sender : a.sender?._id) || '';
+    const bid = (typeof b.sender === 'string' ? b.sender : b.sender?._id) || '';
+    return aid.toString() === bid.toString();
+  };
+
+  const isSameDay = (d1, d2) => {
+    const a = new Date(d1);
+    const b = new Date(d2);
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  };
+
+  const formatDayLabel = (dateStr) => {
+    const d = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    if (isSameDay(d, today)) return 'Today';
+    if (isSameDay(d, yesterday)) return 'Yesterday';
+    return d.toLocaleDateString();
+  };
+
   return (
     <div className="flex-1 min-h-0 flex flex-col relative">
       {/* Messages Container */}
@@ -149,21 +186,49 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
             const currentUserId = (currentUser?._id || currentUser?.id || '').toString();
             const senderId = (typeof message.sender === 'string' ? message.sender : message.sender?._id) || '';
             const isOwn = (senderId.toString() === currentUserId) || message.isOwn;
-            const showAvatar = !prevMessage || prevMessage.sender?._id !== message.sender?._id;
+            const showAvatar = !prevMessage || !sameSender(prevMessage, message);
+            const nextMessage = messages[index + 1];
+            const firstOfDay = !prevMessage || !isSameDay(prevMessage?.createdAt, message.createdAt);
+            const isFirstInGroup = !prevMessage || !sameSender(prevMessage, message) || !isSameDay(prevMessage?.createdAt, message.createdAt);
+            const isLastInGroup = !nextMessage || !sameSender(nextMessage, message) || !isSameDay(nextMessage?.createdAt, message.createdAt);
             
             return (
-              <MessageItem
-                key={message._id || message.id || index}
-                message={message}
-                isOwn={isOwn}
-                showAvatar={showAvatar}
-                currentUser={currentUser}
-              />
+              <div key={message._id || message.id || index}>
+                {firstOfDay && (
+                  <div className="my-4 flex items-center justify-center">
+                    <span className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
+                      {formatDayLabel(message.createdAt)}
+                    </span>
+                  </div>
+                )}
+                <div className={isFirstInGroup ? 'mt-2' : 'mt-0.5'}>
+                  <MessageItem
+                    message={message}
+                    isOwn={isOwn}
+                    showAvatar={showAvatar}
+                    currentUser={currentUser}
+                  />
+                </div>
+              </div>
             );
           })
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Typing indicator */}
+      {typingUsers.length > 0 && (
+        <div className="px-6 pb-2 -mt-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-xs">
+            <span className="relative flex h-2 w-8 items-center">
+              <span className="mx-[2px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="mx-[2px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '120ms' }} />
+              <span className="mx-[2px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '240ms' }} />
+            </span>
+            {typingUsers.length === 1 ? `${typingUsers[0].userName || 'Someone'} is typing…` : 'Multiple people are typing…'}
+          </div>
+        </div>
+      )}
 
       {/* Scroll to bottom button */}
       {showScrollDown && (

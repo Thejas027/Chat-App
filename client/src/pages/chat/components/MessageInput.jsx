@@ -4,7 +4,7 @@ import { Button } from '../../../components/ui';
 import { showError } from '../../../utils/toast';
 import { filesAPI, usersAPI } from '../../../services/api';
 
-const MessageInput = ({ onSendMessage, disabled = false }) => {
+const MessageInput = ({ onSendMessage, disabled = false, onStartTyping, onStopTyping }) => {
   const [message, setMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -22,8 +22,9 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
     try {
       setIsUploading(true);
       await onSendMessage(message.trim(), selectedFiles);
-      setMessage('');
+  setMessage('');
       setSelectedFiles([]);
+  onStopTyping?.();
     } catch (error) {
       console.error('Error sending message:', error);
       showError('Failed to send message');
@@ -37,6 +38,11 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
       e.preventDefault();
       handleSubmit(e);
     }
+  };
+
+  const handleChangeMessage = (e) => {
+    setMessage(e.target.value);
+    onStartTyping?.();
   };
 
   // Auto-grow textarea height up to a cap
@@ -92,19 +98,33 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
       {selectedFiles.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {selectedFiles.map((file, index) => (
-            <div key={index} className="flex items-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm">
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
-              <span className="truncate max-w-32">{file.name}</span>
-              <button
-                type="button"
-                onClick={() => removeFile(index)}
-                className="ml-2 text-blue-500 hover:text-blue-700"
-              >
-                ×
-              </button>
-            </div>
+            file.type?.startsWith('image/') ? (
+              <div key={index} className="relative w-20 h-20 rounded-lg overflow-hidden shadow-sm">
+                <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeFile(index)}
+                  className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-white/90 text-gray-700 hover:bg-white shadow"
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <div key={index} className="flex items-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span className="truncate max-w-32" title={file.name}>{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(index)}
+                  className="ml-2 text-blue-500 hover:text-blue-700"
+                >
+                  ×
+                </button>
+              </div>
+            )
           ))}
         </div>
       )}
@@ -138,7 +158,7 @@ const MessageInput = ({ onSendMessage, disabled = false }) => {
           <textarea
             ref={textAreaRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleChangeMessage}
             onKeyPress={handleKeyPress}
             placeholder="Type a message..."
             disabled={disabled || isUploading}

@@ -6,7 +6,8 @@ import ProfileModal from './components/ProfileModal';
 import ConversationsList from './components/ConversationsList';
 import MessagesArea from './components/MessagesArea';
 import MessageInput from './components/MessageInput';
-import { conversationsAPI } from '../../services/api';
+import NewChatModal from './components/NewChatModal';
+import { conversationsAPI, filesAPI, API_BASE_URL } from '../../services/api';
 import { showError } from '../../utils/toast';
 
 const ChatPage = () => {
@@ -19,6 +20,8 @@ const ChatPage = () => {
   const [messageLoading, setMessageLoading] = useState(false);
   // Tabs removed; keep UI simple
   const [isProfileOpen, setProfileOpen] = useState(false);
+  const [isNewChatOpen, setNewChatOpen] = useState(false);
+  const [typingUsers, setTypingUsers] = useState([]);
 
   // Fetch conversations
   useEffect(() => {
@@ -115,9 +118,48 @@ const ChatPage = () => {
       }
     };
 
+    const handleUserTyping = (data) => {
+      if (!selectedConversation) return;
+      if (data.conversationId !== selectedConversation._id) return;
+      if (data.userId === (user?._id || user?.id)) return;
+      setTypingUsers((prev) => {
+        const filtered = prev.filter((u) => u.userId !== data.userId);
+        return [...filtered, { ...data, at: Date.now() }];
+      });
+    };
+
+    const handleUserStoppedTyping = (data) => {
+      if (!selectedConversation) return;
+      if (data.conversationId !== selectedConversation._id) return;
+      setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId));
+    };
+
+    const handleMessageDelivered = (data) => {
+      if (!selectedConversation) return;
+      if (data.conversationId !== selectedConversation._id) return;
+      setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, status: 'delivered' } : m)));
+    };
+
+    const handleMessageRead = (data) => {
+      if (!selectedConversation) return;
+      if (data.conversationId !== selectedConversation._id) return;
+      setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, status: 'read' } : m)));
+    };
+
     socket.on('new_message', handleNewMessage);
-    return () => socket.off('new_message', handleNewMessage);
-  }, [socket, isConnected, selectedConversation]);
+    socket.on('user_typing', handleUserTyping);
+    socket.on('user_stopped_typing', handleUserStoppedTyping);
+    socket.on('message_delivered', handleMessageDelivered);
+    socket.on('message_read', handleMessageRead);
+
+    return () => {
+      socket.off('new_message', handleNewMessage);
+      socket.off('user_typing', handleUserTyping);
+      socket.off('user_stopped_typing', handleUserStoppedTyping);
+      socket.off('message_delivered', handleMessageDelivered);
+      socket.off('message_read', handleMessageRead);
+    };
+  }, [socket, isConnected, selectedConversation, user]);
 
   const handleSelectConversation = async (conversation) => {
     if (selectedConversation?._id === conversation._id) return;
@@ -143,6 +185,7 @@ const ChatPage = () => {
       showError('Failed to load messages');
     } finally {
       setMessageLoading(false);
+  setTypingUsers([]);
     }
   };
 
@@ -150,10 +193,39 @@ const ChatPage = () => {
 
   const handleSendMessage = async (content, attachments = []) => {
     if (!selectedConversation) return;
+    // Upload attachments first (if any)
+  let uploaded = [];
+    if (attachments && attachments.length > 0) {
+      try {
+        const results = await Promise.all(
+          attachments.map(async (file) => {
+            const res = await filesAPI.uploadFile(file, selectedConversation._id);
+            if (res?.success) {
+              const f = res.data?.file || res.data?.data || res.data || {};
+              const relative = f.url || f.path;
+              const url = relative?.startsWith('http') ? relative : `${API_BASE_URL}${relative || ''}`;
+              return {
+                url,
+                filename: f.filename || f.originalName || file.name,
+                mimeType: f.mimetype || file.type,
+                size: f.size || file.size,
+              };
+            }
+            return null;
+          })
+        );
+        uploaded = results.filter(Boolean);
+      } catch (e) {
+        console.error('Attachment upload failed', e);
+      }
+    }
+
+    const first = uploaded[0];
     const messageData = {
       conversationId: selectedConversation._id,
       content,
-      attachments,
+      attachment: first || null,
+      type: first ? ((first.mimeType || '').startsWith('image/') ? 'image' : ((first.mimeType || '').startsWith('video/') ? 'video' : 'file')) : 'text',
     };
     try {
       if (socket && isConnected) {
@@ -170,15 +242,35 @@ const ChatPage = () => {
     }
   };
 
+  // Typing emitters passed to MessageInput
+  const handleTypingStart = () => {
+    if (!socket || !selectedConversation) return;
+    socket.emit('typing_start', {
+      conversationId: selectedConversation._id,
+      userId: user?._id || user?.id,
+      userName: user?.fullName,
+    });
+  };
+
+  const handleTypingStop = () => {
+    if (!socket || !selectedConversation) return;
+    socket.emit('typing_stop', {
+      conversationId: selectedConversation._id,
+      userId: user?._id || user?.id,
+    });
+  };
+
   const handleLogout = () => {
     logout();
   };
 
-  const selectedUser = selectedConversation?.participants.find(p => p._id !== user.id);
+  const currentUserId = user?._id || user?.id;
+  const selectedUser = selectedConversation?.participants.find(p => (p._id || p)?.toString() !== (currentUserId || '').toString());
 
   return (
     <div className="h-screen flex bg-gray-100">
-      <div className="w-96 h-full bg-white border-r border-gray-200 flex flex-col">
+      {/* Sidebar (Conversations) - full screen on mobile, fixed width on desktop */}
+      <div className={`${selectedConversation ? 'hidden' : 'flex'} sm:flex w-full sm:w-96 h-full bg-white border-r border-gray-200 flex-col`}>
         <div className="p-2 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -210,22 +302,36 @@ const ChatPage = () => {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0">
+    <div className="flex-1 min-h-0">
           <ConversationsList
             conversations={conversations}
             selectedConversation={selectedConversation}
             onSelectConversation={handleSelectConversation}
             loading={loading}
             currentUserId={user?._id || user?.id}
+      onNewChat={() => setNewChatOpen(true)}
           />
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col">
+      {/* Chat Pane - hidden on mobile until a conversation is selected */}
+      <div className={`${selectedConversation ? 'flex' : 'hidden'} sm:flex flex-1 min-h-0 flex-col w-full`}>
         {selectedConversation ? (
           <>
             <div className="p-5 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center space-x-4">
+                {/* Mobile back button */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedConversation(null)}
+                  className="sm:hidden mr-1 p-2 -ml-2 rounded-full hover:bg-gray-100"
+                  aria-label="Back to conversations"
+                  title="Back"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
                 {selectedUser && (
                   <UserAvatar
                     src={selectedUser.avatar}
@@ -245,8 +351,14 @@ const ChatPage = () => {
               messages={messages}
               loading={messageLoading}
               currentUser={user}
+              typingUsers={typingUsers}
             />
-            <MessageInput onSendMessage={handleSendMessage} disabled={!isConnected} />
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              disabled={!isConnected}
+              onStartTyping={handleTypingStart}
+              onStopTyping={handleTypingStop}
+            />
           </>
         ) : (
           <>
@@ -264,6 +376,23 @@ const ChatPage = () => {
         onUpdated={async () => {
           // Refresh auth context so header avatar/name update
           await checkAuthStatus();
+        }}
+      />
+      <NewChatModal
+        isOpen={isNewChatOpen}
+        onClose={() => setNewChatOpen(false)}
+        onCreated={(conv) => {
+          // Prepend if not present and open it
+          setConversations((prev) => {
+            const exists = (prev || []).some((c) => c._id === conv._id);
+            const normalized = {
+              ...conv,
+              lastMessage: conv.lastMessage?.content || conv.lastMessage || '',
+              lastMessageTime: conv.lastMessage?.createdAt || conv.updatedAt,
+            };
+            return exists ? prev.map((c) => (c._id === conv._id ? { ...c, ...normalized } : c)) : [normalized, ...(prev || [])];
+          });
+          setSelectedConversation(conv);
         }}
       />
     </div>
