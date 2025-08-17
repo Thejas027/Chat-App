@@ -22,6 +22,7 @@ const ChatPage = () => {
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [isNewChatOpen, setNewChatOpen] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [replyTo, setReplyTo] = useState(null);
 
   // Fetch conversations
   useEffect(() => {
@@ -146,11 +147,26 @@ const ChatPage = () => {
       setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, status: 'read' } : m)));
     };
 
+    const handleMessageEdited = (data) => {
+      setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, content: data.content, isEdited: data.isEdited, editedAt: data.editedAt } : m)));
+    };
+
+    const handleMessageDeleted = (data) => {
+      setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, isDeleted: true, content: 'This message was deleted' } : m)));
+    };
+
+    const handleMessageDeletedForMe = (data) => {
+      setMessages((prev) => prev.filter((m) => m._id !== data.messageId));
+    };
+
     socket.on('new_message', handleNewMessage);
     socket.on('user_typing', handleUserTyping);
     socket.on('user_stopped_typing', handleUserStoppedTyping);
     socket.on('message_delivered', handleMessageDelivered);
     socket.on('message_read', handleMessageRead);
+  socket.on('message_edited', handleMessageEdited);
+  socket.on('message_deleted', handleMessageDeleted);
+  socket.on('message_deleted_for_me', handleMessageDeletedForMe);
 
     return () => {
       socket.off('new_message', handleNewMessage);
@@ -158,6 +174,9 @@ const ChatPage = () => {
       socket.off('user_stopped_typing', handleUserStoppedTyping);
       socket.off('message_delivered', handleMessageDelivered);
       socket.off('message_read', handleMessageRead);
+  socket.off('message_edited', handleMessageEdited);
+  socket.off('message_deleted', handleMessageDeleted);
+  socket.off('message_deleted_for_me', handleMessageDeletedForMe);
     };
   }, [socket, isConnected, selectedConversation, user]);
 
@@ -225,6 +244,7 @@ const ChatPage = () => {
       conversationId: selectedConversation._id,
       content,
       attachment: first || null,
+      replyTo: replyTo?._id || replyTo?.id || null,
       type: first ? ((first.mimeType || '').startsWith('image/') ? 'image' : ((first.mimeType || '').startsWith('video/') ? 'video' : 'file')) : 'text',
     };
     try {
@@ -240,6 +260,7 @@ const ChatPage = () => {
     } catch (error) {
       showError('Failed to send message');
     }
+  setReplyTo(null);
   };
 
   // Typing emitters passed to MessageInput
@@ -352,12 +373,17 @@ const ChatPage = () => {
               loading={messageLoading}
               currentUser={user}
               typingUsers={typingUsers}
+              onReply={(msg) => setReplyTo(msg)}
+              onDelete={(msg, scope) => conversationsAPI.deleteMessage(msg._id, scope)}
+              onEdit={(msg, newText) => socket?.emit('edit_message', { messageId: msg._id, content: newText })}
             />
             <MessageInput
               onSendMessage={handleSendMessage}
               disabled={!isConnected}
               onStartTyping={handleTypingStart}
               onStopTyping={handleTypingStop}
+              replyTo={replyTo}
+              onCancelReply={() => setReplyTo(null)}
             />
           </>
         ) : (

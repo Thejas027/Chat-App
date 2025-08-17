@@ -129,9 +129,11 @@ class ApiService {
     });
   }
 
-  async deleteMessage(messageId) {
+  async deleteMessage(messageId, deleteFor = 'me') {
     return this.makeRequest(`/messages/${messageId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deleteFor })
     });
   }
 

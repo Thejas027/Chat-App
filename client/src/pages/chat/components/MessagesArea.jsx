@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import UserAvatar from './UserAvatar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
-const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
+const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, onEdit, onDelete, onJump }) => {
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -34,8 +34,19 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
             {message.sender?.fullName || 'Unknown User'}
           </p>
         )}
+
+        {message.replyTo && (
+          <button
+            type="button"
+            onClick={() => onJump?.(message.replyTo?._id || message.replyTo?.id)}
+            className={`mb-2 block text-left text-xs px-2 py-1 rounded ${isOwn ? 'bg-white/10' : 'bg-black/5'} hover:opacity-90`}
+          >
+            <div className="text-[10px] opacity-70">Replying to {message.replyTo?.sender?.fullName || 'message'}</div>
+            <div className="truncate max-w-[240px]">{message.replyTo?.content || message.replyTo?.attachment?.filename || 'Attachment'}</div>
+          </button>
+        )}
         
-        <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
+  <p className="text-sm break-words whitespace-pre-wrap">{message.content}{message.isEdited ? <span className="ml-1 text-[10px] opacity-70">(edited)</span> : null}</p>
         
         {message.attachment && (
           <div className="mt-2">
@@ -74,12 +85,21 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser }) => {
             </div>
           )}
         </div>
+        <div className="mt-1 -mb-1 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
+          <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => onReply?.(message)}>Reply</button>
+          {isOwn && <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => {
+            const newText = prompt('Edit message', message.content);
+            if (newText != null) onEdit?.(message, newText);
+          }}>Edit</button>}
+          <button className="text-xs text-red-500 hover:text-red-600" onClick={() => onDelete?.(message, isOwn ? (confirm('Delete for everyone? OK=Everyone, Cancel=Me only') ? 'everyone' : 'me') : 'me')}>Delete</button>
+          <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => navigator.clipboard.writeText(message.content || '')}>Copy</button>
+        </div>
       </div>
     </div>
   );
 };
 
-const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [] }) => {
+const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete }) => {
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -193,7 +213,7 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
             const isLastInGroup = !nextMessage || !sameSender(nextMessage, message) || !isSameDay(nextMessage?.createdAt, message.createdAt);
             
             return (
-              <div key={message._id || message.id || index}>
+              <div key={message._id || message.id || index} data-mid={message._id || message.id}>
                 {firstOfDay && (
                   <div className="my-4 flex items-center justify-center">
                     <span className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
@@ -207,6 +227,13 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
                     isOwn={isOwn}
                     showAvatar={showAvatar}
                     currentUser={currentUser}
+                    onReply={onReply}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onJump={(mid) => {
+                      const el = scrollContainerRef.current?.querySelector(`[data-mid="${mid}"]`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
                   />
                 </div>
               </div>
@@ -251,7 +278,7 @@ MessageItem.propTypes = {
   message: PropTypes.shape({
     _id: PropTypes.string,
     id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    content: PropTypes.string.isRequired,
+    content: PropTypes.string,
     sender: PropTypes.shape({
       _id: PropTypes.string,
       fullName: PropTypes.string,
@@ -260,18 +287,34 @@ MessageItem.propTypes = {
     createdAt: PropTypes.string,
     isOwn: PropTypes.bool,
     status: PropTypes.string,
-    attachments: PropTypes.array
+    attachment: PropTypes.shape({
+      url: PropTypes.string,
+      path: PropTypes.string,
+      filename: PropTypes.string,
+      size: PropTypes.number,
+      mimetype: PropTypes.string,
+      mimeType: PropTypes.string
+    }),
+    isEdited: PropTypes.bool
   }).isRequired,
   isOwn: PropTypes.bool.isRequired,
   showAvatar: PropTypes.bool,
-  currentUser: PropTypes.object
+  currentUser: PropTypes.object,
+  onReply: PropTypes.func,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func
 };
 
 MessagesArea.propTypes = {
   selectedConversation: PropTypes.object,
   messages: PropTypes.array,
   loading: PropTypes.bool,
-  currentUser: PropTypes.object
+  currentUser: PropTypes.object,
+  typingUsers: PropTypes.array,
+  onReply: PropTypes.func,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
+  onJump: PropTypes.func
 };
 
 export default MessagesArea;
