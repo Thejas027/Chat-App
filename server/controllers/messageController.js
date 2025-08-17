@@ -24,7 +24,7 @@ const getMessages = async (req, res) => {
     }
 
     // Get messages with pagination
-    const messages = await Message.find({ conversation: conversationId })
+  const messages = await Message.find({ conversation: conversationId, deletedFor: { $ne: req.user._id } })
       .populate('sender', 'fullName email avatar')
       .populate('replyTo', 'content sender')
       .sort({ createdAt: -1 }) // Latest first
@@ -73,7 +73,7 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    const { conversationId, content, type = 'text', replyTo } = req.body;
+  const { conversationId, content, type = 'text', replyTo, attachment } = req.body;
 
     // Check if conversation exists and user is participant
     const conversation = await Conversation.findById(conversationId);
@@ -101,6 +101,24 @@ const sendMessage = async (req, res) => {
       status: 'sent'
     });
 
+    // If an attachment is included, attach it and infer type if needed
+    if (attachment && (attachment.url || attachment.path)) {
+      message.attachment = {
+        url: attachment.url || attachment.path,
+        filename: attachment.filename || attachment.originalName,
+        size: attachment.size,
+        mimetype: attachment.mimetype || attachment.mimeType,
+      };
+      if (!content || content.trim() === '') {
+        // Derive type from mimetype
+        const mt = message.attachment.mimetype || '';
+        if (mt.startsWith('image/')) message.type = 'image';
+        else if (mt.startsWith('video/')) message.type = 'video';
+        else if (mt.startsWith('audio/')) message.type = 'audio';
+        else message.type = 'file';
+      }
+    }
+
     await message.save();
 
     // Populate sender info for response
@@ -123,6 +141,7 @@ const sendMessage = async (req, res) => {
         type: message.type,
         sender: message.sender,
         conversation: message.conversation,
+        attachment: message.attachment,
         replyTo: message.replyTo,
         createdAt: message.createdAt,
         status: 'sent'
@@ -251,6 +270,13 @@ const deleteMessage = async (req, res) => {
       if (!message.deletedFor.includes(req.user._id)) {
         message.deletedFor.push(req.user._id);
         await message.save();
+      }
+      if (global.socketManager) {
+        global.socketManager.io.to(`conversation_${message.conversation}`).to(req.user._id.toString()).emit('message_deleted_for_me', {
+          messageId: message._id,
+          deletedBy: req.user._id,
+          deleteFor: 'me'
+        });
       }
     }
 

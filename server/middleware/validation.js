@@ -54,17 +54,38 @@ const validateSendMessage = [
   body('conversationId')
     .isMongoId()
     .withMessage('Valid conversation ID is required'),
-    
+
+  // Allow sending with either content or attachment
   body('content')
+    .optional({ values: 'falsy' })
     .trim()
-    .isLength({ min: 1, max: 1000 })
-    .withMessage('Message content must be between 1 and 1000 characters'),
-    
+    .isLength({ max: 1000 })
+    .withMessage('Message content cannot exceed 1000 characters'),
+
+  body('attachment')
+    .optional()
+    .custom((att) => {
+      if (!att) return true;
+      if (typeof att !== 'object') throw new Error('Invalid attachment');
+      if (!att.url && !att.path) throw new Error('Attachment must include url or path');
+      return true;
+    }),
+
+  body().custom((_, { req }) => {
+    const hasContent = (req.body.content || '').trim().length > 0;
+    const att = req.body.attachment || {};
+    const hasAttachment = !!(att && (att.url || att.path));
+    if (!hasContent && !hasAttachment) {
+      throw new Error('Either content or attachment is required');
+    }
+    return true;
+  }),
+
   body('type')
     .optional()
     .isIn(['text', 'image', 'file', 'audio', 'video'])
     .withMessage('Invalid message type'),
-    
+
   body('replyTo')
     .optional()
     .isMongoId()

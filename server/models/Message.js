@@ -4,9 +4,17 @@ const messageSchema = new mongoose.Schema({
   // Message content
   content: {
     type: String,
-    required: [true, 'Message content is required'],
     trim: true,
-    maxlength: [1000, 'Message cannot exceed 1000 characters']
+    default: '',
+    maxlength: [1000, 'Message cannot exceed 1000 characters'],
+    validate: {
+      validator: function (v) {
+        const hasText = (v || '').trim().length > 0;
+        const hasAttachment = !!(this.attachment && (this.attachment.url || this.attachment.path));
+        return hasText || hasAttachment;
+      },
+      message: 'Either content or attachment is required'
+    }
   },
   
   // Message type
@@ -83,6 +91,21 @@ const messageSchema = new mongoose.Schema({
   isDeleted: {
     type: Boolean,
     default: false
+  },
+  // Per-user delete visibility
+  deletedFor: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+
+  // Edits
+  isEdited: {
+    type: Boolean,
+    default: false
+  },
+
+  editedAt: {
+    type: Date
   },
   
   deletedAt: {

@@ -14,7 +14,7 @@ class SocketManager {
 
     this.connectedUsers = new Map(); // Store user_id -> socket_id mapping
     this.userSockets = new Map(); // Store socket_id -> user_info mapping
-    
+
     this.setupMiddleware();
     this.setupEventHandlers();
   }
@@ -24,14 +24,14 @@ class SocketManager {
     this.io.use(async (socket, next) => {
       try {
         const token = socket.handshake.auth.token || socket.handshake.headers.cookie?.split('token=')[1]?.split(';')[0];
-        
+
         if (!token) {
           return next(new Error('Authentication error'));
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user = await User.findById(decoded.userId).select('-password');
-        
+
         if (!user) {
           return next(new Error('User not found'));
         }
@@ -48,7 +48,7 @@ class SocketManager {
   setupEventHandlers() {
     this.io.on('connection', (socket) => {
       console.log(`🔌 User ${socket.user.fullName} connected (${socket.id})`);
-      
+
       // Store user connection
       this.connectedUsers.set(socket.userId, socket.id);
       this.userSockets.set(socket.id, {
@@ -65,6 +65,7 @@ class SocketManager {
       this.handleSendMessage(socket);
       this.handleTyping(socket);
       this.handleMarkAsRead(socket);
+      this.handleEditMessage(socket);
       this.handleDisconnection(socket);
     });
   }
@@ -74,7 +75,7 @@ class SocketManager {
     socket.on('join_conversation', (conversationId) => {
       socket.join(`conversation_${conversationId}`);
       console.log(`👥 ${socket.user.fullName} joined conversation ${conversationId}`);
-      
+
       // Notify others in the conversation
       socket.to(`conversation_${conversationId}`).emit('user_joined_conversation', {
         user: socket.user,
@@ -88,7 +89,7 @@ class SocketManager {
     socket.on('leave_conversation', (conversationId) => {
       socket.leave(`conversation_${conversationId}`);
       console.log(`👋 ${socket.user.fullName} left conversation ${conversationId}`);
-      
+
       // Notify others in the conversation
       socket.to(`conversation_${conversationId}`).emit('user_left_conversation', {
         user: socket.user,
@@ -100,11 +101,11 @@ class SocketManager {
   // Handle sending messages
   handleSendMessage(socket) {
     socket.on('send_message', async (data) => {
-      const { conversationId, content, type = 'text' } = data;
-      
+      const { conversationId, content, type = 'text', attachment, replyTo } = data;
+
       try {
         const { Message, Conversation } = require('../models');
-        
+
         // Validate conversation exists and user is participant
         const conversation = await Conversation.findById(conversationId);
         if (
@@ -121,13 +122,33 @@ class SocketManager {
           type,
           sender: socket.userId,
           conversation: conversationId,
-          status: 'sent'
+          status: 'sent',
+          replyTo: replyTo || null
         });
 
+        if (attachment && (attachment.url || attachment.path)) {
+          message.attachment = {
+            url: attachment.url || attachment.path,
+            filename: attachment.filename || attachment.originalName,
+            size: attachment.size,
+            mimetype: attachment.mimetype || attachment.mimeType,
+          };
+          if (!content || content.trim() === '') {
+            const mt = message.attachment.mimetype || '';
+            if (mt.startsWith('image/')) message.type = 'image';
+            else if (mt.startsWith('video/')) message.type = 'video';
+            else if (mt.startsWith('audio/')) message.type = 'audio';
+            else message.type = 'file';
+          }
+        }
+
         await message.save();
-        
-        // Populate sender info
+
+        // Populate sender info and replyTo preview (content/sender)
         await message.populate('sender', 'fullName email avatar');
+        if (message.replyTo) {
+          await message.populate({ path: 'replyTo', select: 'content sender', populate: { path: 'sender', select: 'fullName avatar' } });
+        }
 
         // Update conversation's last message
         await Conversation.findByIdAndUpdate(conversationId, {
@@ -141,18 +162,20 @@ class SocketManager {
           type: message.type,
           sender: message.sender,
           conversation: message.conversation,
+          attachment: message.attachment,
+          replyTo: message.replyTo,
           createdAt: message.createdAt,
           status: 'sent'
         };
 
         // Send to all users in the conversation
         this.io.to(`conversation_${conversationId}`).emit('new_message', messageData);
-        
+
         console.log(`💬 Message sent in conversation ${conversationId} by ${socket.user.fullName}`);
-        
+
         // Send confirmation to sender
         socket.emit('message_sent', { messageId: message._id, status: 'sent' });
-        
+
       } catch (error) {
         console.error('Error sending message:', error);
         socket.emit('message_error', { error: 'Failed to send message' });
@@ -162,16 +185,21 @@ class SocketManager {
 
   // Handle typing indicators
   handleTyping(socket) {
-    socket.on('typing_start', (conversationId) => {
+    socket.on('typing_start', (payload) => {
+      const conversationId = typeof payload === 'string' ? payload : payload?.conversationId;
+      if (!conversationId) return;
       socket.to(`conversation_${conversationId}`).emit('user_typing', {
-        user: socket.user,
+        userId: socket.userId,
+        userName: socket.user.fullName,
         conversationId
       });
     });
 
-    socket.on('typing_stop', (conversationId) => {
+    socket.on('typing_stop', (payload) => {
+      const conversationId = typeof payload === 'string' ? payload : payload?.conversationId;
+      if (!conversationId) return;
       socket.to(`conversation_${conversationId}`).emit('user_stopped_typing', {
-        user: socket.user,
+        userId: socket.userId,
         conversationId
       });
     });
@@ -181,7 +209,7 @@ class SocketManager {
   handleMarkAsRead(socket) {
     socket.on('mark_as_read', (data) => {
       const { conversationId, messageId } = data;
-      
+
       // Notify sender that message was read
       socket.to(`conversation_${conversationId}`).emit('message_read', {
         messageId,
@@ -191,15 +219,39 @@ class SocketManager {
     });
   }
 
+  // Handle editing messages (sender only)
+  handleEditMessage(socket) {
+    socket.on('edit_message', async ({ messageId, content }) => {
+      try {
+        const { Message, Conversation } = require('../models');
+        const message = await Message.findById(messageId);
+        if (!message) return;
+        if (message.sender.toString() !== socket.userId) return;
+        message.content = content;
+        message.isEdited = true;
+        message.editedAt = new Date();
+        await message.save();
+        this.io.to(`conversation_${message.conversation}`).emit('message_edited', {
+          messageId: message._id,
+          content: message.content,
+          isEdited: true,
+          editedAt: message.editedAt
+        });
+      } catch (e) {
+        console.error('edit_message error', e);
+      }
+    });
+  }
+
   // Handle disconnection
   handleDisconnection(socket) {
     socket.on('disconnect', () => {
       console.log(`🔌 User ${socket.user.fullName} disconnected (${socket.id})`);
-      
+
       // Remove user from connected users
       this.connectedUsers.delete(socket.userId);
       this.userSockets.delete(socket.id);
-      
+
       // Update user's online status
       this.updateUserOnlineStatus(socket.userId, false);
     });

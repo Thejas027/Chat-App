@@ -86,7 +86,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
 });
 
 // Download file endpoint
-router.get('/download/:filename', authenticate, async (req, res) => {
+router.get('/download/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
     const filePath = path.join(__dirname, '../uploads', filename);
