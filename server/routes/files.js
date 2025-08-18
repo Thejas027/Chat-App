@@ -88,16 +88,22 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
 // Download file endpoint
 router.get('/download/:filename', async (req, res) => {
   try {
-    const { filename } = req.params;
-    const filePath = path.join(__dirname, '../uploads', filename);
+  const { filename } = req.params;
+  // sanitize filename by allowing only basename
+  const safeName = path.basename(filename);
+  const filePath = path.join(__dirname, '../uploads', safeName);
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'File not found' });
     }
 
-    // Send file
-    res.sendFile(filePath);
+  // Send file with safe headers (browser infers type)
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+  // Optional: short cache for frequently viewed images/files
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.sendFile(filePath);
 
   } catch (error) {
     console.error('File download error:', error);
@@ -109,7 +115,14 @@ router.get('/download/:filename', async (req, res) => {
 router.delete('/:filename', authenticate, async (req, res) => {
   try {
     const { filename } = req.params;
-    const filePath = path.join(__dirname, '../uploads', filename);
+    const safeName = path.basename(filename);
+    const filePath = path.join(__dirname, '../uploads', safeName);
+
+    // Only allow deleting files that belong to messages sent by the requester
+    const msg = await Message.findOne({ 'attachment.filename': safeName, sender: req.user._id });
+    if (!msg) {
+      return res.status(403).json({ message: 'Not allowed to delete this file' });
+    }
 
     // Check if file exists
     if (fs.existsSync(filePath)) {

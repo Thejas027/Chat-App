@@ -47,7 +47,7 @@ class SocketManager {
 
   setupEventHandlers() {
     this.io.on('connection', (socket) => {
-      console.log(`🔌 User ${socket.user.fullName} connected (${socket.id})`);
+  if (process.env.NODE_ENV !== 'production') console.log(`🔌 User ${socket.user.fullName} connected (${socket.id})`);
 
       // Store user connection
       this.connectedUsers.set(socket.userId, socket.id);
@@ -74,7 +74,7 @@ class SocketManager {
   handleJoinConversation(socket) {
     socket.on('join_conversation', (conversationId) => {
       socket.join(`conversation_${conversationId}`);
-      console.log(`👥 ${socket.user.fullName} joined conversation ${conversationId}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`👥 ${socket.user.fullName} joined conversation ${conversationId}`);
 
       // Notify others in the conversation
       socket.to(`conversation_${conversationId}`).emit('user_joined_conversation', {
@@ -88,7 +88,7 @@ class SocketManager {
   handleLeaveConversation(socket) {
     socket.on('leave_conversation', (conversationId) => {
       socket.leave(`conversation_${conversationId}`);
-      console.log(`👋 ${socket.user.fullName} left conversation ${conversationId}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`👋 ${socket.user.fullName} left conversation ${conversationId}`);
 
       // Notify others in the conversation
       socket.to(`conversation_${conversationId}`).emit('user_left_conversation', {
@@ -171,7 +171,7 @@ class SocketManager {
         // Send to all users in the conversation
         this.io.to(`conversation_${conversationId}`).emit('new_message', messageData);
 
-        console.log(`💬 Message sent in conversation ${conversationId} by ${socket.user.fullName}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`💬 Message sent in conversation ${conversationId} by ${socket.user.fullName}`);
 
         // Send confirmation to sender
         socket.emit('message_sent', { messageId: message._id, status: 'sent' });
@@ -246,7 +246,7 @@ class SocketManager {
   // Handle disconnection
   handleDisconnection(socket) {
     socket.on('disconnect', () => {
-      console.log(`🔌 User ${socket.user.fullName} disconnected (${socket.id})`);
+  if (process.env.NODE_ENV !== 'production') console.log(`🔌 User ${socket.user.fullName} disconnected (${socket.id})`);
 
       // Remove user from connected users
       this.connectedUsers.delete(socket.userId);

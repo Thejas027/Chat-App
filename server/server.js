@@ -4,6 +4,10 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const helmet = require('helmet');
+const compression = require('compression');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/database');
 const SocketManager = require('./socket/SocketManager');
 const userRoutes = require('./routes/users');
@@ -15,6 +19,10 @@ dotenv.config();
 connectDB();
 
 const app = express();
+// Trust proxy (needed when running behind a reverse proxy/load balancer)
+if (process.env.TRUST_PROXY === '1' || process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
@@ -39,11 +47,27 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
+// Security headers (keep relaxed CORP for serving images/files)
+app.use(helmet({ crossOriginResourcePolicy: false }));
+// Gzip responses
+app.use(compression());
+// HTTP logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(cookieParser()); // Parse cookies
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Limit request body size to mitigate abuse
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Routes
+// Basic rate limits
+const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+const writeLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
+
+app.use(globalLimiter);
+app.use('/api/auth', authLimiter);
+app.use(['/api/messages', '/api/files'], writeLimiter);
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', userRoutes);
 app.use('/api/conversations', require('./routes/conversations'));
@@ -62,6 +86,24 @@ app.get('/api/health', (req, res) => {
     message: 'Server is healthy',
     timestamp: new Date().toISOString()
   });
+});
+
+// 404 handler
+app.use((req, res, next) => {
+  if (res.headersSent) return next();
+  res.status(404).json({ success: false, message: 'Not found' });
+});
+
+// Basic error handler to avoid leaking stack traces
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const status = err.status || 500;
+  const msg = process.env.NODE_ENV === 'production' ? 'Internal Server Error' : (err.message || 'Error');
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.error('Unhandled error:', err);
+  }
+  res.status(status).json({ success: false, message: msg });
 });
 
 // Start server
