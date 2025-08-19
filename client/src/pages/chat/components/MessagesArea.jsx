@@ -184,6 +184,8 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
   const scrollContainerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(false);
+  const prevConvIdRef = useRef(null);
+  const forceScrollRef = useRef(false);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -214,6 +216,23 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
       setShowNewBadge(true);
     }
   }, [messages, scrollToBottom]);
+
+  // Force scroll to bottom when switching/opening a conversation once messages load
+  useEffect(() => {
+    if (!selectedConversation) return;
+    if (prevConvIdRef.current !== selectedConversation._id) {
+      prevConvIdRef.current = selectedConversation._id;
+      forceScrollRef.current = true;
+    }
+  }, [selectedConversation?._id]);
+
+  useEffect(() => {
+    if (forceScrollRef.current && !loading) {
+      scrollToBottom('auto');
+      setShowNewBadge(false);
+      forceScrollRef.current = false;
+    }
+  }, [loading, messages, scrollToBottom]);
 
   if (!selectedConversation) {
     return (
