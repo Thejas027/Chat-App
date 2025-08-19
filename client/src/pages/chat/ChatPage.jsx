@@ -23,6 +23,7 @@ const ChatPage = () => {
   const [isNewChatOpen, setNewChatOpen] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
+  const [firstUnreadId, setFirstUnreadId] = useState(null);
 
   // Fetch conversations
   useEffect(() => {
@@ -151,6 +152,10 @@ const ChatPage = () => {
       setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, content: data.content, isEdited: data.isEdited, editedAt: data.editedAt } : m)));
     };
 
+    const handleMessageReactionUpdated = (data) => {
+      setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, reactions: data.reactions } : m)));
+    };
+
     const handleMessageDeleted = (data) => {
       setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, isDeleted: true, content: 'This message was deleted' } : m)));
     };
@@ -167,6 +172,7 @@ const ChatPage = () => {
   socket.on('message_edited', handleMessageEdited);
   socket.on('message_deleted', handleMessageDeleted);
   socket.on('message_deleted_for_me', handleMessageDeletedForMe);
+  socket.on('message_reaction_updated', handleMessageReactionUpdated);
 
     return () => {
       socket.off('new_message', handleNewMessage);
@@ -177,6 +183,7 @@ const ChatPage = () => {
   socket.off('message_edited', handleMessageEdited);
   socket.off('message_deleted', handleMessageDeleted);
   socket.off('message_deleted_for_me', handleMessageDeletedForMe);
+  socket.off('message_reaction_updated', handleMessageReactionUpdated);
     };
   }, [socket, isConnected, selectedConversation, user]);
 
@@ -188,7 +195,16 @@ const ChatPage = () => {
     try {
       const response = await conversationsAPI.getMessages(conversation._id);
       // response.data.data.messages is the array
-      setMessages((response.data && response.data.data && response.data.data.messages) ? response.data.data.messages : []);
+      const arr = (response.data && response.data.data && response.data.data.messages) ? response.data.data.messages : [];
+      setMessages(arr);
+      // assume unread cutoff is conversation.lastReadAt per user (not available here), fallback: if unreadCount>0, mark first of last N
+      if (conversation.unreadCount > 0 && arr.length > 0) {
+        const idx = Math.max(arr.length - conversation.unreadCount, 0);
+        const id = arr[idx]?._id || arr[idx]?.id || null;
+        setFirstUnreadId(id);
+      } else {
+        setFirstUnreadId(null);
+      }
       if (conversation.unreadCount > 0) {
         await conversationsAPI.markAsRead(conversation._id);
         setConversations((prev) =>
@@ -288,6 +304,19 @@ const ChatPage = () => {
   const currentUserId = user?._id || user?.id;
   const selectedUser = selectedConversation?.participants.find(p => (p._id || p)?.toString() !== (currentUserId || '').toString());
 
+  // Basic keyboard shortcut for search (placeholder): Ctrl/Cmd+K
+  useEffect(() => {
+    const onKey = (e) => {
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      if ((isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        // TODO: open search UI modal
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="h-screen flex bg-gray-100">
       {/* Sidebar (Conversations) - full screen on mobile, fixed width on desktop */}
@@ -376,6 +405,7 @@ const ChatPage = () => {
               onReply={(msg) => setReplyTo(msg)}
               onDelete={(msg, scope) => conversationsAPI.deleteMessage(msg._id, scope)}
               onEdit={(msg, newText) => socket?.emit('edit_message', { messageId: msg._id, content: newText })}
+              firstUnreadId={firstUnreadId}
             />
             <MessageInput
               onSendMessage={handleSendMessage}

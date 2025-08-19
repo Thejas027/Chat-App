@@ -5,7 +5,9 @@ const {
   sendMessage,
   updateMessageStatus,
   deleteMessage,
-  searchMessages
+  searchMessages,
+  addReaction,
+  removeReaction
 } = require('../controllers/messageController');
 const { authenticate } = require('../middleware/auth');
 const { validateSendMessage, checkValidation } = require('../middleware/validation');
@@ -27,5 +29,11 @@ router.delete('/:messageId', deleteMessage);
 
 // GET /api/messages/:conversationId/search - Search messages in conversation
 router.get('/:conversationId/search', searchMessages);
+
+// POST /api/messages/:messageId/reactions - Add or replace your reaction
+router.post('/:messageId/reactions', addReaction);
+
+// DELETE /api/messages/:messageId/reactions - Remove your reaction
+router.delete('/:messageId/reactions', removeReaction);
 
 module.exports = router;

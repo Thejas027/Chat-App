@@ -144,6 +144,19 @@ class ApiService {
     });
   }
 
+  async addReaction(messageId, emoji) {
+    return this.makeRequest(`/messages/${messageId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji })
+    });
+  }
+
+  async removeReaction(messageId) {
+    return this.makeRequest(`/messages/${messageId}/reactions`, {
+      method: 'DELETE'
+    });
+  }
+
   async searchMessages(conversationId, query) {
     return this.makeRequest(`/messages/search/${conversationId}?q=${encodeURIComponent(query)}`);
   }
@@ -246,6 +259,12 @@ export const conversationsAPI = {
 export const filesAPI = {
   uploadFile: (file, conversationId) => apiService.uploadFile(file, conversationId),
   uploadAvatar: (file) => apiService.uploadAvatar(file)
+};
+
+// Convenience messages exports for reactions
+export const messagesAPI = {
+  addReaction: (messageId, emoji) => apiService.addReaction(messageId, emoji),
+  removeReaction: (messageId) => apiService.removeReaction(messageId)
 };
 
 export default apiService;

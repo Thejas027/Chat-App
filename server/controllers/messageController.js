@@ -298,9 +298,10 @@ const deleteMessage = async (req, res) => {
 const searchMessages = async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const { query, page = 1, limit = 20 } = req.query;
+    const { query: queryParam, q, page = 1, limit = 20 } = req.query;
+    const query = (typeof queryParam === 'string' && queryParam) || (typeof q === 'string' && q) || '';
 
-    if (!query || query.trim().length < 2) {
+  if (!query || query.trim().length < 2) {
       return res.status(400).json({
         success: false,
         message: 'Search query must be at least 2 characters long'
@@ -362,5 +363,68 @@ module.exports = {
   sendMessage,
   updateMessageStatus,
   deleteMessage,
-  searchMessages
+  searchMessages,
+  addReaction: async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const { emoji } = req.body;
+      if (!emoji || typeof emoji !== 'string') {
+        return res.status(400).json({ success: false, message: 'emoji is required' });
+      }
+
+      const message = await Message.findById(messageId).populate('sender', 'fullName avatar');
+      if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+      // Ensure requester is participant in the conversation
+      const conversation = await Conversation.findById(message.conversation);
+      if (!conversation || !conversation.participants.some(p => p.toString() === req.user._id.toString())) {
+        return res.status(403).json({ success: false, message: 'Unauthorized' });
+      }
+
+      // Single reaction per user: replace existing
+      message.reactions = (message.reactions || []).filter(r => r.user.toString() !== req.user._id.toString());
+      message.reactions.push({ user: req.user._id, emoji, createdAt: new Date() });
+      await message.save();
+
+      // Broadcast update
+      if (global.socketManager) {
+        global.socketManager.io
+          .to(`conversation_${message.conversation}`)
+          .emit('message_reaction_updated', { messageId: message._id, reactions: message.reactions });
+      }
+
+      res.json({ success: true, message: 'Reaction added', data: { messageId: message._id, reactions: message.reactions } });
+    } catch (error) {
+      console.error('Add reaction error:', error);
+      res.status(500).json({ success: false, message: 'Failed to add reaction' });
+    }
+  },
+  removeReaction: async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const message = await Message.findById(messageId);
+      if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+      const conversation = await Conversation.findById(message.conversation);
+      if (!conversation || !conversation.participants.some(p => p.toString() === req.user._id.toString())) {
+        return res.status(403).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const before = (message.reactions || []).length;
+      message.reactions = (message.reactions || []).filter(r => r.user.toString() !== req.user._id.toString());
+      if (message.reactions.length !== before) {
+        await message.save();
+        if (global.socketManager) {
+          global.socketManager.io
+            .to(`conversation_${message.conversation}`)
+            .emit('message_reaction_updated', { messageId: message._id, reactions: message.reactions });
+        }
+      }
+
+      res.json({ success: true, message: 'Reaction removed', data: { messageId: message._id, reactions: message.reactions } });
+    } catch (error) {
+      console.error('Remove reaction error:', error);
+      res.status(500).json({ success: false, message: 'Failed to remove reaction' });
+    }
+  }
 };

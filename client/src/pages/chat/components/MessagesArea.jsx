@@ -1,9 +1,12 @@
 import PropTypes from 'prop-types';
 import { API_BASE_URL } from '../../../services/api';
+import { messagesAPI } from '../../../services/api';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import UserAvatar from './UserAvatar';
 import { showChoiceToast, showInputToast } from '../../../utils/toastInteractive';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
+
+const EMOJI_SET = ['👍','❤️','😂','😮','😢'];
 
 const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, onEdit, onDelete, onJump }) => {
   const formatTimestamp = (timestamp) => {
@@ -12,8 +15,54 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const linkify = (text) => {
+    if (!text) return '';
+    const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => {
+      if (!part) return null;
+      const isUrl = /^(https?:\/\/|www\.)/i.test(part);
+      if (!isUrl) return <span key={i}>{part}</span>;
+      const href = part.startsWith('http') ? part : `http://${part}`;
+      return <a key={i} href={href} target="_blank" rel="noreferrer" className="underline break-all">{part}</a>;
+    });
+  };
+
+  const handleToggleReaction = async (emoji) => {
+    try {
+      const myId = currentUser?._id || currentUser?.id;
+      const reacted = (message.reactions || []).some(r => (r.user?._id || r.user)?.toString() === (myId || '').toString());
+      if (reacted && (message.reactions || []).some(r => r.emoji === emoji)) {
+        await messagesAPI.removeReaction(message._id);
+      } else {
+        await messagesAPI.addReaction(message._id, emoji);
+      }
+    } catch (e) {
+      // ignore toast; optimistic UI will update via socket event
+    }
+  };
+
+  const [showPicker, setShowPicker] = useState(false);
+
+  // Swipe-to-reply (mobile)
+  let touchStartX = 0;
+  let touchActive = false;
+  const onTouchStart = (e) => {
+    touchActive = true;
+    touchStartX = e.touches?.[0]?.clientX || 0;
+  };
+  const onTouchMove = (e) => {
+    if (!touchActive) return;
+    const dx = (e.touches?.[0]?.clientX || 0) - touchStartX;
+    if (dx > 60) {
+      touchActive = false;
+      onReply?.(message);
+    }
+  };
+  const onTouchEnd = () => { touchActive = false; };
+
   return (
-  <div className={`flex items-end mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+  <div className={`flex items-end mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
       {showAvatar && !isOwn && (
         <UserAvatar
           src={message.sender?.avatar}
@@ -49,7 +98,7 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
           </button>
         )}
         
-  <p className="text-sm break-words whitespace-pre-wrap">{message.content}{message.isEdited ? <span className="ml-1 text-[10px] opacity-70">(edited)</span> : null}</p>
+  <p className="text-sm break-words whitespace-pre-wrap">{linkify(message.content)}{message.isEdited ? <span className="ml-1 text-[10px] opacity-70">(edited)</span> : null}</p>
         
         {(() => {
           const att = message.attachment || null;
@@ -73,6 +122,15 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
             </div>
           );
         })()}
+
+        {/* Reactions summary (only when there are reactions) */}
+        {Array.isArray(message.reactions) && message.reactions.length > 0 && (
+          <div className="mt-1 flex items-center gap-1 flex-wrap">
+            {Object.entries((message.reactions || []).reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {})).map(([emoji, count]) => (
+              <button key={emoji} onClick={() => handleToggleReaction(emoji)} className={`text-xs px-1.5 py-0.5 rounded-full border ${isOwn ? 'border-white/30 text-white' : 'border-gray-300 text-gray-700'} hover:opacity-80`}>{emoji} {count}</button>
+            ))}
+          </div>
+        )}
         
         <div className="flex items-center justify-between mt-1 gap-4">
           <p className={`text-[10px] ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
@@ -88,8 +146,9 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
             </div>
           )}
         </div>
-        <div className="mt-1 -mb-1 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
+        <div className="mt-1 -mb-1 flex gap-2 opacity-0 hover:opacity-100 transition-opacity relative">
           <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => onReply?.(message)}>Reply</button>
+          <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => setShowPicker((s) => !s)}>React</button>
           {isOwn && <button className="text-xs text-gray-500 hover:text-gray-700" onClick={async () => {
             const newText = await showInputToast('Edit message', { initialValue: message.content || '' });
             if (newText != null) onEdit?.(message, newText);
@@ -106,16 +165,25 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
             onDelete?.(message, scope);
           }}>Delete</button>
           <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => navigator.clipboard.writeText(message.content || '')}>Copy</button>
+
+          {showPicker && (
+            <div className="absolute -top-9 left-0 bg-white border rounded-lg shadow p-1 flex gap-1 z-10" onMouseLeave={() => setShowPicker(false)}>
+              {EMOJI_SET.map(em => (
+                <button key={em} className="px-1 text-lg hover:scale-110" onClick={() => { handleToggleReaction(em); setShowPicker(false); }}>{em}</button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete }) => {
+const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete, firstUnreadId }) => {
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [showNewBadge, setShowNewBadge] = useState(false);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -141,6 +209,9 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     if (distanceFromBottom < 200) {
       scrollToBottom('auto');
+      setShowNewBadge(false);
+    } else {
+      setShowNewBadge(true);
     }
   }, [messages, scrollToBottom]);
 
@@ -201,7 +272,7 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
           maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,1) 24px, rgba(0,0,0,1) calc(100% - 24px), rgba(0,0,0,0.12))'
         }}
       >
-        {messages.length === 0 ? (
+  {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-500">
               <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
@@ -225,8 +296,14 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
             const isFirstInGroup = !prevMessage || !sameSender(prevMessage, message) || !isSameDay(prevMessage?.createdAt, message.createdAt);
             const isLastInGroup = !nextMessage || !sameSender(nextMessage, message) || !isSameDay(nextMessage?.createdAt, message.createdAt);
             
+            const isFirstUnread = firstUnreadId && (message._id === firstUnreadId || message.id === firstUnreadId);
             return (
               <div key={message._id || message.id || index} data-mid={message._id || message.id}>
+                {isFirstUnread && (
+                  <div className="my-2 flex items-center justify-center">
+                    <span className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full border border-blue-200">Unread</span>
+                  </div>
+                )}
                 {firstOfDay && (
                   <div className="my-4 flex items-center justify-center">
                     <span className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
@@ -271,16 +348,20 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
       )}
 
       {/* Scroll to bottom button */}
-      {showScrollDown && (
+      {(showScrollDown || showNewBadge) && (
         <button
           onClick={() => scrollToBottom()}
           className="absolute bottom-4 right-4 p-2 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           aria-label="Scroll to latest message"
           title="Scroll to latest message"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          {showNewBadge ? (
+            <span className="text-xs px-2">New</span>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          )}
         </button>
       )}
     </div>
@@ -327,7 +408,8 @@ MessagesArea.propTypes = {
   onReply: PropTypes.func,
   onEdit: PropTypes.func,
   onDelete: PropTypes.func,
-  onJump: PropTypes.func
+  onJump: PropTypes.func,
+  firstUnreadId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
 };
 
 export default MessagesArea;
