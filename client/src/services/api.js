@@ -158,7 +158,7 @@ class ApiService {
   }
 
   async searchMessages(conversationId, query) {
-    return this.makeRequest(`/messages/search/${conversationId}?q=${encodeURIComponent(query)}`);
+    return this.makeRequest(`/messages/${conversationId}/search?q=${encodeURIComponent(query)}`);
   }
 
   // File upload
@@ -264,7 +264,8 @@ export const filesAPI = {
 // Convenience messages exports for reactions
 export const messagesAPI = {
   addReaction: (messageId, emoji) => apiService.addReaction(messageId, emoji),
-  removeReaction: (messageId) => apiService.removeReaction(messageId)
+  removeReaction: (messageId) => apiService.removeReaction(messageId),
+  search: (conversationId, query) => apiService.searchMessages(conversationId, query)
 };
 
 export default apiService;

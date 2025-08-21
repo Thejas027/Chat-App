@@ -35,6 +35,26 @@ const getMessages = async (req, res) => {
     // Reverse to show oldest first
     messages.reverse();
 
+    // Compute firstUnreadId for this page (oldest unread message sent by others)
+    const me = req.user._id.toString();
+    let firstUnreadId = null;
+    let lastReadAt = null;
+    for (const m of messages) {
+      // Track latest readAt we can see on this page for current user
+      const myRead = (m.readBy || []).find(r => (r.user?.toString ? r.user.toString() : r.user) === me);
+      if (myRead && myRead.readAt) {
+        const d = new Date(myRead.readAt);
+        if (!lastReadAt || d > lastReadAt) lastReadAt = d;
+      }
+      // Find first unread from others
+      const senderId = (typeof m.sender === 'object' ? m.sender?._id : m.sender) || '';
+      const isFromMe = senderId && senderId.toString() === me;
+      const hasRead = Array.isArray(m.readBy) && m.readBy.some(r => (r.user?.toString ? r.user.toString() : r.user) === me);
+      if (!firstUnreadId && !isFromMe && !hasRead) {
+        firstUnreadId = m._id;
+      }
+    }
+
     // Get total count for pagination
   const totalMessages = await Message.countDocuments({ conversation: conversationId });
 
@@ -42,6 +62,8 @@ const getMessages = async (req, res) => {
       success: true,
       data: {
         messages,
+        firstUnreadId: firstUnreadId || null,
+        lastReadAt: lastReadAt || null,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalMessages / limit),

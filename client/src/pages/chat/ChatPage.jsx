@@ -7,6 +7,7 @@ import ConversationsList from './components/ConversationsList';
 import MessagesArea from './components/MessagesArea';
 import MessageInput from './components/MessageInput';
 import NewChatModal from './components/NewChatModal';
+import SearchModal from './components/SearchModal';
 import { conversationsAPI, filesAPI, API_BASE_URL } from '../../services/api';
 import { showError } from '../../utils/toast';
 
@@ -25,6 +26,7 @@ const ChatPage = () => {
   const [typingByConversation, setTypingByConversation] = useState({}); // { [conversationId]: [{userId, userName, at}] }
   const [replyTo, setReplyTo] = useState(null);
   const [firstUnreadId, setFirstUnreadId] = useState(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Fetch conversations
   useEffect(() => {
@@ -218,11 +220,13 @@ const ChatPage = () => {
     setMessageLoading(true);
     try {
       const response = await conversationsAPI.getMessages(conversation._id);
-      // response.data.data.messages is the array
-      const arr = (response.data && response.data.data && response.data.data.messages) ? response.data.data.messages : [];
+      const dataBlock = response?.data?.data || {};
+      const arr = Array.isArray(dataBlock.messages) ? dataBlock.messages : [];
       setMessages(arr);
-      // assume unread cutoff is conversation.lastReadAt per user (not available here), fallback: if unreadCount>0, mark first of last N
-      if (conversation.unreadCount > 0 && arr.length > 0) {
+      // Prefer server-provided firstUnreadId for accuracy, fallback to heuristic if absent
+      if (dataBlock.firstUnreadId) {
+        setFirstUnreadId(dataBlock.firstUnreadId);
+      } else if (conversation.unreadCount > 0 && arr.length > 0) {
         const idx = Math.max(arr.length - conversation.unreadCount, 0);
         const id = arr[idx]?._id || arr[idx]?.id || null;
         setFirstUnreadId(id);
@@ -328,13 +332,28 @@ const ChatPage = () => {
   const currentUserId = user?._id || user?.id;
   const selectedUser = selectedConversation?.participants.find(p => (p._id || p)?.toString() !== (currentUserId || '').toString());
 
-  // Basic keyboard shortcut for search (placeholder): Ctrl/Cmd+K
+  const formatLastSeen = (iso) => {
+    if (!iso) return 'Offline';
+    const d = new Date(iso);
+    const diff = Date.now() - d.getTime();
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return 'last seen just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `last seen ${min} min${min === 1 ? '' : 's'} ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `last seen ${hr} hour${hr === 1 ? '' : 's'} ago`;
+    const day = Math.floor(hr / 24);
+    if (day === 1) return `last seen yesterday at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    return `last seen ${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  // Basic keyboard shortcut for search modal: Ctrl/Cmd+K
   useEffect(() => {
     const onKey = (e) => {
       const isMac = navigator.platform.toUpperCase().includes('MAC');
       if ((isMac ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        // TODO: open search UI modal
+        setIsSearchOpen(true);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -425,7 +444,7 @@ const ChatPage = () => {
                           <span className="mx-[1px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '240ms' }} />
                         </span>
                       </span>
-                    ) : (selectedUser?.isOnline ? 'Online' : 'Offline')}
+                    ) : (selectedUser?.isOnline ? 'Online' : formatLastSeen(selectedUser?.lastSeen))}
                   </p>
                 </div>
               </div>
@@ -484,6 +503,17 @@ const ChatPage = () => {
             return exists ? prev.map((c) => (c._id === conv._id ? { ...c, ...normalized } : c)) : [normalized, ...(prev || [])];
           });
           setSelectedConversation(conv);
+        }}
+      />
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        conversationId={selectedConversation?._id}
+        onJump={(mid) => {
+          // try to scroll inside MessagesArea list
+          const container = document.querySelector('[data-mid]')?.closest('[class*="overflow-y-auto"]');
+          const el = document.querySelector(`[data-mid="${mid}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }}
       />
     </div>

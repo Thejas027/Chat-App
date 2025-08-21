@@ -13,7 +13,9 @@ const NewChatModal = ({ isOpen, onClose, onCreated }) => {
     const load = async () => {
       setLoading(true);
       const res = await usersAPI.getUsers();
-      setUsers(res?.data?.data?.users || []);
+  // Support both {success,data:{users}} and legacy array response
+  const list = Array.isArray(res?.data) ? res.data : (res?.data?.data?.users || []);
+  setUsers(list);
       setLoading(false);
     };
     load();
@@ -25,8 +27,9 @@ const NewChatModal = ({ isOpen, onClose, onCreated }) => {
     setLoading(true);
     const res = await conversationsAPI.findOrCreateConversation(userId);
     setLoading(false);
-    if (res?.success && res?.data?.data) {
-      onCreated?.(res.data.data);
+    const conv = res?.data?.data || res?.data;
+    if (conv && conv._id) {
+      onCreated?.(conv);
       onClose();
     }
   };

@@ -612,8 +612,8 @@ const getMessagesForConversation = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Get messages for the conversation
-    const messages = await Message.find({ conversation: conversationId })
+  // Get messages for the conversation (exclude messages deleted for this user)
+  const messages = await Message.find({ conversation: conversationId, deletedFor: { $ne: req.user._id } })
       .populate('sender', 'fullName avatar')
       .sort({ createdAt: 1 })
       .limit(parseInt(limit))
@@ -633,11 +633,29 @@ const getMessagesForConversation = async (req, res) => {
       }
     );
 
+    // Compute firstUnreadId for this page
+    const me = req.user._id.toString();
+    let firstUnreadId = null;
+    let lastReadAt = null;
+    for (const m of messages) {
+      const myRead = (m.readBy || []).find(r => (r.user?.toString ? r.user.toString() : r.user) === me);
+      if (myRead && myRead.readAt) {
+        const d = new Date(myRead.readAt);
+        if (!lastReadAt || d > lastReadAt) lastReadAt = d;
+      }
+      const senderId = (typeof m.sender === 'object' ? m.sender?._id : m.sender) || '';
+      const isFromMe = senderId && senderId.toString() === me;
+      const hasRead = Array.isArray(m.readBy) && m.readBy.some(r => (r.user?.toString ? r.user.toString() : r.user) === me);
+      if (!firstUnreadId && !isFromMe && !hasRead) firstUnreadId = m._id;
+    }
+
     res.json({
       success: true,
       data: {
         messages,
         conversation,
+        firstUnreadId: firstUnreadId || null,
+        lastReadAt: lastReadAt || null,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(await Message.countDocuments({ conversation: conversationId }) / limit),
