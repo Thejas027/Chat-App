@@ -22,6 +22,7 @@ const ChatPage = () => {
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [isNewChatOpen, setNewChatOpen] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [typingByConversation, setTypingByConversation] = useState({}); // { [conversationId]: [{userId, userName, at}] }
   const [replyTo, setReplyTo] = useState(null);
   const [firstUnreadId, setFirstUnreadId] = useState(null);
 
@@ -121,19 +122,42 @@ const ChatPage = () => {
     };
 
     const handleUserTyping = (data) => {
-      if (!selectedConversation) return;
-      if (data.conversationId !== selectedConversation._id) return;
-      if (data.userId === (user?._id || user?.id)) return;
-      setTypingUsers((prev) => {
-        const filtered = prev.filter((u) => u.userId !== data.userId);
-        return [...filtered, { ...data, at: Date.now() }];
-      });
+      // Update selected conversation typing indicator
+      if (selectedConversation && data.conversationId === selectedConversation._id && data.userId !== (user?._id || user?.id)) {
+        setTypingUsers((prev) => {
+          const filtered = prev.filter((u) => u.userId !== data.userId);
+          return [...filtered, { ...data, at: Date.now() }];
+        });
+      }
+      // Update list typing map for any conversation
+      if (data.userId !== (user?._id || user?.id)) {
+        setTypingByConversation((prev) => {
+          const list = [...(prev[data.conversationId] || [])].filter((u) => u.userId !== data.userId);
+          const next = { ...prev, [data.conversationId]: [...list, { userId: data.userId, userName: data.userName, at: Date.now() }] };
+          return next;
+        });
+        // Auto-expire after 6s in case stop event is missed
+        setTimeout(() => {
+          setTypingByConversation((prev) => {
+            const arr = prev[data.conversationId] || [];
+            const filtered = arr.filter((u) => u.userId !== data.userId);
+            if (filtered.length === arr.length) return prev;
+            return { ...prev, [data.conversationId]: filtered };
+          });
+        }, 6000);
+      }
     };
 
     const handleUserStoppedTyping = (data) => {
-      if (!selectedConversation) return;
-      if (data.conversationId !== selectedConversation._id) return;
-      setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId));
+      if (selectedConversation && data.conversationId === selectedConversation._id) {
+        setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId));
+      }
+      setTypingByConversation((prev) => {
+        const arr = prev[data.conversationId] || [];
+        const filtered = arr.filter((u) => u.userId !== data.userId);
+        if (filtered.length === arr.length) return prev;
+        return { ...prev, [data.conversationId]: filtered };
+      });
     };
 
     const handleMessageDelivered = (data) => {
@@ -359,7 +383,8 @@ const ChatPage = () => {
             onSelectConversation={handleSelectConversation}
             loading={loading}
             currentUserId={user?._id || user?.id}
-      onNewChat={() => setNewChatOpen(true)}
+            onNewChat={() => setNewChatOpen(true)}
+            typingMap={typingByConversation}
           />
         </div>
       </div>
@@ -391,7 +416,17 @@ const ChatPage = () => {
                 )}
                 <div>
                   <h3 className="font-semibold">{selectedUser?.fullName}</h3>
-                  <p className="text-sm text-gray-500">{selectedUser?.isOnline ? 'Online' : 'Offline'}</p>
+                  <p className="text-sm text-gray-500">
+                    {typingUsers.length > 0 ? (
+                      <span className="inline-flex items-center gap-1">typing
+                        <span className="relative flex h-2 w-6 items-center">
+                          <span className="mx-[1px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="mx-[1px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '120ms' }} />
+                          <span className="mx-[1px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '240ms' }} />
+                        </span>
+                      </span>
+                    ) : (selectedUser?.isOnline ? 'Online' : 'Offline')}
+                  </p>
                 </div>
               </div>
               <div />

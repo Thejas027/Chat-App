@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import UserAvatar from './UserAvatar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
-const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false, currentUserId, onNewChat }) => {
+const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false, currentUserId, onNewChat, typingMap = {} }) => {
   // Ensure conversations is always an array
   const conversationsArray = Array.isArray(conversations) ? conversations : [];
   const [query, setQuery] = useState('');
@@ -128,7 +128,11 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
                     
                     <div className="flex items-center justify-between mt-1">
                       <p className="text-sm text-gray-600 truncate max-w-40">
-                        {conversation.lastMessage || 'No messages yet'}
+                        {(typingMap[conversation._id] && typingMap[conversation._id].length > 0) ? (
+                          <span className="text-blue-600">typing…</span>
+                        ) : (
+                          conversation.lastMessage || 'No messages yet'
+                        )}
                       </p>
                       
                       {conversation.unreadCount > 0 && (
@@ -156,6 +160,7 @@ ConversationsList.propTypes = {
   loading: PropTypes.bool,
   currentUserId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   onNewChat: PropTypes.func,
+  typingMap: PropTypes.object,
 };
 
 export default ConversationsList;
