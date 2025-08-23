@@ -61,7 +61,7 @@ const SearchModal = ({ isOpen, onClose, conversationId, onJump }) => {
               <button
                 key={m._id}
                 className="w-full text-left p-3 border-b hover:bg-gray-50"
-                onClick={() => { onJump?.(m._id); onClose?.(); }}
+                onClick={() => { onJump?.(m._id, q.trim()); onClose?.(); }}
               >
                 <div className="text-xs text-gray-500">{new Date(m.createdAt).toLocaleString()}</div>
                 <div className="text-sm line-clamp-2">{m.content || m.attachment?.filename || '(attachment)'}</div>

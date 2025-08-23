@@ -8,7 +8,7 @@ import MessagesArea from './components/MessagesArea';
 import MessageInput from './components/MessageInput';
 import NewChatModal from './components/NewChatModal';
 import SearchModal from './components/SearchModal';
-import { conversationsAPI, filesAPI, API_BASE_URL } from '../../services/api';
+import { conversationsAPI, filesAPI, API_BASE_URL, messagesAPI } from '../../services/api';
 import { showError } from '../../utils/toast';
 
 const ChatPage = () => {
@@ -29,6 +29,8 @@ const ChatPage = () => {
   const [replyTo, setReplyTo] = useState(null);
   const [firstUnreadId, setFirstUnreadId] = useState(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [highlightTerm, setHighlightTerm] = useState('');
+  const [jumpToMessageId, setJumpToMessageId] = useState('');
 
   // Fetch conversations
   useEffect(() => {
@@ -260,6 +262,8 @@ const ChatPage = () => {
     if (selectedConversation?._id === conversation._id) return;
 
     setSelectedConversation(conversation);
+  setHighlightTerm('');
+  setJumpToMessageId('');
     setMessageLoading(true);
     setPage(1);
     setHasMore(true);
@@ -409,9 +413,9 @@ const ChatPage = () => {
   }, []);
 
   return (
-    <div className="h-screen flex bg-gray-100">
+    <div className="h-screen flex bg-gray-100 overflow-x-hidden">
       {/* Sidebar (Conversations) - full screen on mobile, fixed width on desktop */}
-      <div className={`${selectedConversation ? 'hidden' : 'flex'} sm:flex w-full sm:w-96 h-full bg-white border-r border-gray-200 flex-col`}>
+  <div className={`${selectedConversation ? 'hidden' : 'flex'} sm:flex w-full sm:w-96 h-full bg-white border-r border-gray-200 flex-col min-w-0 overflow-x-hidden`}>
         <div className="p-2 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -457,7 +461,7 @@ const ChatPage = () => {
       </div>
 
       {/* Chat Pane - hidden on mobile until a conversation is selected */}
-      <div className={`${selectedConversation ? 'flex' : 'hidden'} sm:flex flex-1 min-h-0 flex-col w-full`}>
+  <div className={`${selectedConversation ? 'flex' : 'hidden'} sm:flex flex-1 min-h-0 min-w-0 flex-col w-full overflow-x-hidden`}>
         {selectedConversation ? (
           <>
             <div className="p-5 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10">
@@ -508,6 +512,8 @@ const ChatPage = () => {
               onDelete={(msg, scope) => conversationsAPI.deleteMessage(msg._id, scope)}
               onEdit={(msg, newText) => socket?.emit('edit_message', { messageId: msg._id, content: newText })}
               firstUnreadId={firstUnreadId}
+              highlightTerm={highlightTerm}
+              jumpToMessageId={jumpToMessageId}
               onLoadMore={async () => {
                 if (!hasMore || !selectedConversation) return;
                 const nextPage = page + 1;
@@ -580,11 +586,35 @@ const ChatPage = () => {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         conversationId={selectedConversation?._id}
-        onJump={(mid) => {
-          // try to scroll inside MessagesArea list
-          const container = document.querySelector('[data-mid]')?.closest('[class*="overflow-y-auto"]');
-          const el = document.querySelector(`[data-mid="${mid}"]`);
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        onJump={async (mid, term) => {
+          // If the message is already rendered, just scroll and highlight
+          const existing = messages.some((m) => (m._id || m.id) === mid);
+          if (!existing) {
+            // Load a small context window around the target message
+            try {
+              const res = await messagesAPI.getContext(mid, 30, 30);
+              const ctx = res?.data?.data || res?.data || {};
+              const ctxMessages = Array.isArray(ctx.messages) ? ctx.messages : Array.isArray(ctx) ? ctx : [];
+              if (ctxMessages.length > 0) {
+                // Merge uniquely by id and sort by createdAt
+                setMessages((prev) => {
+                  const map = new Map();
+                  const push = (arr) => (arr || []).forEach((mm) => { const id = mm._id || mm.id; if (!id) return; map.set(id, mm); });
+                  push(prev);
+                  push(ctxMessages);
+                  const merged = Array.from(map.values()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                  return merged;
+                });
+              }
+            } catch (e) {
+              // ignore fetch error
+            }
+          }
+          // Delegate actual scrolling to MessagesArea (Virtuoso ref)
+          setJumpToMessageId(mid);
+          // Clear after a moment to allow future jumps
+          setTimeout(() => setJumpToMessageId(''), 800);
+          setHighlightTerm(term || '');
         }}
       />
     </div>

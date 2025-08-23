@@ -9,7 +9,7 @@ import LoadingSpinner from '../../../components/ui/LoadingSpinner';
 
 const EMOJI_SET = ['👍','❤️','😂','😮','😢'];
 
-const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, onEdit, onDelete, onJump }) => {
+const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, onEdit, onDelete, onJump, highlightTerm }) => {
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -26,6 +26,35 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
       if (!isUrl) return <span key={i}>{part}</span>;
       const href = part.startsWith('http') ? part : `http://${part}`;
       return <a key={i} href={href} target="_blank" rel="noreferrer" className="underline break-all">{part}</a>;
+    });
+  };
+
+  const renderWithHighlight = (nodes) => {
+    // nodes can be string or array of React nodes from linkify
+    const term = (highlightTerm || '').trim();
+    if (!term) return nodes;
+    const safe = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(safe, 'gi');
+    const wrap = (str, keyBase) => {
+      let lastIndex = 0;
+      const out = [];
+      str.replace(rx, (m, offset) => {
+        if (offset > lastIndex) out.push(<span key={`${keyBase}-t-${offset}`}>{str.slice(lastIndex, offset)}</span>);
+        out.push(<mark key={`${keyBase}-m-${offset}`} className={`${isOwn ? 'bg-yellow-300/60 text-current' : 'bg-yellow-200/80 text-current'} rounded px-0.5`}>{m}</mark>);
+        lastIndex = offset + m.length;
+        return m;
+      });
+      if (lastIndex < str.length) out.push(<span key={`${keyBase}-t-end`}>{str.slice(lastIndex)}</span>);
+      return out;
+    };
+    if (typeof nodes === 'string') return wrap(nodes, 's');
+    // If array of React nodes (some are strings, some are <a> links), only highlight inside string/text spans
+    return nodes.map((n, idx) => {
+      if (typeof n === 'string') return <span key={`rs-${idx}`}>{wrap(n, `rs-${idx}`)}</span>;
+      if (n && n.type === 'span' && typeof n.props?.children === 'string') {
+        return <span key={`sp-${idx}`}>{wrap(n.props.children, `sp-${idx}`)}</span>;
+      }
+      return n; // leave <a> links and others as-is
     });
   };
 
@@ -74,7 +103,7 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
       )}
       
       <div
-        className={`max-w-[70%] px-3 py-2 rounded-2xl shadow-sm ${
+  className={`max-w-[70%] px-3 py-2 rounded-2xl shadow-sm break-words ${
           isOwn
             ? 'bg-blue-600 text-white rounded-br-sm'
             : 'bg-slate-100 text-slate-900 rounded-bl-sm border border-slate-200'
@@ -99,7 +128,7 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
           </button>
         )}
         
-  <p className="text-sm break-words whitespace-pre-wrap">{linkify(message.content)}{message.isEdited ? <span className="ml-1 text-[10px] opacity-70">(edited)</span> : null}</p>
+  <p className="text-sm break-words whitespace-pre-wrap break-all">{renderWithHighlight(linkify(message.content))}{message.isEdited ? <span className="ml-1 text-[10px] opacity-70">(edited)</span> : null}</p>
         
         {(() => {
           const att = message.attachment || null;
@@ -110,7 +139,7 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
           return (
             <div className="mt-2">
               {isImage ? (
-                <img src={src} alt={att.filename || 'image'} className="max-w-[240px] rounded-md border border-black/5" />
+                <img src={src} alt={att.filename || 'image'} className="max-w-full sm:max-w-[240px] h-auto rounded-md border border-black/5" />
               ) : (
                 <div className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full bg-black/10">
                   <span className="opacity-80">📎</span>
@@ -180,13 +209,14 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
   );
 };
 
-const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete, firstUnreadId, onLoadMore }) => {
+const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete, firstUnreadId, onLoadMore, highlightTerm, jumpToMessageId }) => {
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(false);
   const prevConvIdRef = useRef(null);
   const forceScrollRef = useRef(false);
+  const virtuosoRef = useRef(null);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -220,6 +250,20 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
       setShowNewBadge(true);
     }
   }, [messages, scrollToBottom]);
+
+  // Jump to a specific message id if requested
+  useEffect(() => {
+    if (!jumpToMessageId) return;
+    const targetIndex = messages.findIndex((m) => (m._id || m.id) === jumpToMessageId);
+    if (targetIndex >= 0 && virtuosoRef.current) {
+      // Scroll to item index and center it
+      try {
+        virtuosoRef.current.scrollToIndex({ index: targetIndex, align: 'center', behavior: 'smooth' });
+      } catch (_) {
+        // ignore
+      }
+    }
+  }, [jumpToMessageId, messages]);
 
   // Force scroll to bottom when switching/opening a conversation once messages load
   useEffect(() => {
@@ -286,10 +330,11 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col relative">
+    <div className="flex-1 min-h-0 min-w-0 flex flex-col relative">
       <Virtuoso
-        className="messages-scroll-container"
-        style={{ height: '100%', padding: '1.5rem 1.5rem 0.5rem 1.5rem' }}
+        ref={virtuosoRef}
+        className="messages-scroll-container overflow-x-hidden"
+        style={{ height: '100%' }}
         data={messages}
         totalCount={messages.length}
         startReached={() => { if (typeof onLoadMore === 'function') onLoadMore(); }}
@@ -305,7 +350,7 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
           const isFirstInGroup = !prevMessage || !sameSender(prevMessage, message) || !isSameDay(prevMessage?.createdAt, message.createdAt);
           const isFirstUnread = firstUnreadId && (message._id === firstUnreadId || message.id === firstUnreadId);
           return (
-            <div key={message._id || message.id || index} data-mid={message._id || message.id} className="space-y-2">
+            <div key={message._id || message.id || index} data-mid={message._id || message.id} className="px-6 space-y-2">
               {isFirstUnread && (
                 <div className="my-2 flex items-center justify-center">
                   <span className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full border border-blue-200">Unread</span>
@@ -331,6 +376,7 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
                     const el = document.querySelector(`[data-mid="${mid}"]`);
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   }}
+                  highlightTerm={highlightTerm}
                 />
               </div>
             </div>
@@ -401,7 +447,9 @@ MessageItem.propTypes = {
   currentUser: PropTypes.object,
   onReply: PropTypes.func,
   onEdit: PropTypes.func,
-  onDelete: PropTypes.func
+  onDelete: PropTypes.func,
+  onJump: PropTypes.func,
+  highlightTerm: PropTypes.string
 };
 
 MessagesArea.propTypes = {
@@ -414,7 +462,8 @@ MessagesArea.propTypes = {
   onEdit: PropTypes.func,
   onDelete: PropTypes.func,
   onJump: PropTypes.func,
-  firstUnreadId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+  firstUnreadId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  highlightTerm: PropTypes.string
 };
 
 export default MessagesArea;

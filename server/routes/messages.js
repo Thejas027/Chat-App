@@ -6,6 +6,7 @@ const {
   updateMessageStatus,
   deleteMessage,
   searchMessages,
+  getMessageContext,
   addReaction,
   removeReaction
 } = require('../controllers/messageController');
@@ -29,6 +30,9 @@ router.delete('/:messageId', deleteMessage);
 
 // GET /api/messages/:conversationId/search - Search messages in conversation
 router.get('/:conversationId/search', searchMessages);
+
+// GET /api/messages/context/:messageId - Get a small window around a message
+router.get('/context/:messageId', getMessageContext);
 
 // POST /api/messages/:messageId/reactions - Add or replace your reaction
 router.post('/:messageId/reactions', addReaction);

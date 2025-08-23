@@ -407,6 +407,56 @@ module.exports = {
   updateMessageStatus,
   deleteMessage,
   searchMessages,
+  // Get a small context window of messages around a given messageId
+  getMessageContext: async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const before = Math.min(parseInt(req.query.before || '20', 10), 100);
+      const after = Math.min(parseInt(req.query.after || '20', 10), 100);
+
+      const msg = await Message.findById(messageId).lean();
+      if (!msg) return res.status(404).json({ success: false, message: 'Message not found' });
+
+      // Ensure requester is participant
+      const conversation = await Conversation.findById(msg.conversation).lean();
+      if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found' });
+      if (!conversation.participants.some(p => p.toString() === req.user._id.toString())) {
+        return res.status(403).json({ success: false, message: 'Unauthorized' });
+      }
+
+      // Fetch before window (older messages)
+      const beforeDocs = await Message.find({
+        conversation: msg.conversation,
+        deletedFor: { $ne: req.user._id },
+        createdAt: { $lt: msg.createdAt }
+      })
+        .populate('sender', 'fullName email avatar')
+        .populate('replyTo', 'content sender')
+        .sort({ createdAt: -1 })
+        .limit(before)
+        .lean();
+
+      // Fetch after window (newer inc target)
+      const afterDocs = await Message.find({
+        conversation: msg.conversation,
+        deletedFor: { $ne: req.user._id },
+        createdAt: { $gte: msg.createdAt }
+      })
+        .populate('sender', 'fullName email avatar')
+        .populate('replyTo', 'content sender')
+        .sort({ createdAt: 1 })
+        .limit(after + 1)
+        .lean();
+
+      // Combine: reverse before (oldest first), then after (already oldest-to-newest)
+      const windowMessages = [...beforeDocs.reverse(), ...afterDocs];
+
+      res.json({ success: true, data: { messages: windowMessages, conversationId: msg.conversation, targetId: messageId } });
+    } catch (error) {
+      console.error('Get message context error:', error);
+      res.status(500).json({ success: false, message: 'Failed to fetch message context' });
+    }
+  },
   addReaction: async (req, res) => {
     try {
       const { messageId } = req.params;

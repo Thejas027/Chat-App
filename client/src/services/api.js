@@ -161,6 +161,10 @@ class ApiService {
     return this.makeRequest(`/messages/${conversationId}/search?q=${encodeURIComponent(query)}`);
   }
 
+  async getMessageContext(messageId, before = 20, after = 20) {
+    return this.makeRequest(`/messages/context/${messageId}?before=${before}&after=${after}`);
+  }
+
   // File upload
   async uploadFile(file, conversationId) {
     const formData = new FormData();
@@ -265,7 +269,8 @@ export const filesAPI = {
 export const messagesAPI = {
   addReaction: (messageId, emoji) => apiService.addReaction(messageId, emoji),
   removeReaction: (messageId) => apiService.removeReaction(messageId),
-  search: (conversationId, query) => apiService.searchMessages(conversationId, query)
+  search: (conversationId, query) => apiService.searchMessages(conversationId, query),
+  getContext: (messageId, before, after) => apiService.getMessageContext(messageId, before, after)
 };
 
 export default apiService;
