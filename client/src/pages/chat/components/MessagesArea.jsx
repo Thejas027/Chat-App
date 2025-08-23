@@ -179,7 +179,7 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
   );
 };
 
-const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete, firstUnreadId }) => {
+const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete, firstUnreadId, onLoadMore }) => {
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -198,6 +198,9 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
     const onScroll = () => {
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       setShowScrollDown(distanceFromBottom > 120);
+      if (el.scrollTop < 60 && typeof onLoadMore === 'function') {
+        onLoadMore();
+      }
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
@@ -286,11 +289,15 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
       {/* Messages Container */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth"
+        className="messages-scroll-container flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth"
         style={{
           maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,1) 24px, rgba(0,0,0,1) calc(100% - 24px), rgba(0,0,0,0.12))'
         }}
       >
+        {/* top loader */}
+        {loading && (
+          <div className="flex items-center justify-center py-2 text-xs text-gray-500">Loading…</div>
+        )}
   {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-500">

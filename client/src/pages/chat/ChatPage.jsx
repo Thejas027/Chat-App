@@ -19,6 +19,8 @@ const ChatPage = () => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [messageLoading, setMessageLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   // Tabs removed; keep UI simple
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [isNewChatOpen, setNewChatOpen] = useState(false);
@@ -35,11 +37,23 @@ const ChatPage = () => {
         setLoading(true);
         const convResponse = await conversationsAPI.getConversations();
         const conversationsData = (convResponse && convResponse.data && convResponse.data.data && convResponse.data.data.conversations) ? convResponse.data.data.conversations : [];
-        const normalized = (Array.isArray(conversationsData) ? conversationsData : []).map(c => ({
-          ...c,
-          lastMessage: c.lastMessage && typeof c.lastMessage === 'object' ? (c.lastMessage.content || '') : (c.lastMessage || ''),
-          lastMessageTime: c.lastMessage && typeof c.lastMessage === 'object' ? (c.lastMessage.createdAt || c.updatedAt) : (c.lastMessageTime || c.updatedAt)
-        }));
+        const me = (user?._id || user?.id || '').toString();
+        const normalized = (Array.isArray(conversationsData) ? conversationsData : []).map(c => {
+          const lm = (c.lastMessage && typeof c.lastMessage === 'object') ? c.lastMessage : null;
+          const lastMessagePreview = lm ? (lm.content || '') : (c.lastMessage || '');
+          const lastMessageTime = lm ? (lm.createdAt || c.updatedAt) : (c.lastMessageTime || c.updatedAt);
+          const lastMessageId = lm ? (lm._id || lm.id) : undefined;
+          const lastMessageStatus = lm ? lm.status : undefined;
+          const lastMessageIsOwn = lm ? (((typeof lm.sender === 'string' ? lm.sender : lm.sender?._id) || '').toString() === me) : false;
+          return {
+            ...c,
+            lastMessage: lastMessagePreview,
+            lastMessageTime,
+            lastMessageId,
+            lastMessageStatus,
+            lastMessageIsOwn,
+          };
+        });
         const deduped = Array.from(new Map(normalized.map(c => [c._id, c])).values())
           .sort((a, b) => new Date(b.lastMessageTime || b.updatedAt) - new Date(a.lastMessageTime || a.updatedAt));
         setConversations(deduped);
@@ -52,13 +66,13 @@ const ChatPage = () => {
     };
 
     fetchData();
-  }, []);
+  }, [user]);
 
   // Socket event handlers
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    const handleNewMessage = async (message) => {
+  const handleNewMessage = async (message) => {
       if (selectedConversation && message.conversation === selectedConversation._id) {
         setMessages((prev) => [...prev, message]);
       }
@@ -66,13 +80,18 @@ const ChatPage = () => {
       setConversations((prev) => {
         const list = Array.isArray(prev) ? prev : [];
         const existing = list.find((c) => c._id === message.conversation);
-        if (existing) {
+    const me = (user?._id || user?.id || '').toString();
+    const isSelf = ((typeof message.sender === 'string' ? message.sender : message.sender?._id) || '').toString() === me;
+    if (existing) {
           return list.map((conv) =>
             conv._id === message.conversation
               ? {
                 ...conv,
                 lastMessage: message.content,
                 lastMessageTime: message.createdAt,
+        lastMessageId: message._id,
+        lastMessageIsOwn: isSelf,
+        lastMessageStatus: isSelf ? (message.status || 'sent') : conv.lastMessageStatus,
                 unreadCount:
                   conv._id === selectedConversation?._id
                     ? 0
@@ -88,6 +107,9 @@ const ChatPage = () => {
             participants: [],
             lastMessage: message.content,
             lastMessageTime: message.createdAt,
+      lastMessageId: message._id,
+      lastMessageIsOwn: isSelf,
+      lastMessageStatus: isSelf ? (message.status || 'sent') : undefined,
             unreadCount: 1,
           },
           ...list,
@@ -166,12 +188,31 @@ const ChatPage = () => {
       if (!selectedConversation) return;
       if (data.conversationId !== selectedConversation._id) return;
       setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, status: 'delivered' } : m)));
+      setConversations((prev) => (prev || []).map((c) => (c._id === data.conversationId && c.lastMessageId === data.messageId ? { ...c, lastMessageStatus: 'delivered' } : c)));
     };
 
     const handleMessageRead = (data) => {
       if (!selectedConversation) return;
       if (data.conversationId !== selectedConversation._id) return;
       setMessages((prev) => prev.map((m) => (m._id === data.messageId ? { ...m, status: 'read' } : m)));
+      setConversations((prev) => (prev || []).map((c) => (c._id === data.conversationId && c.lastMessageId === data.messageId ? { ...c, lastMessageStatus: 'read' } : c)));
+    };
+
+    const handleUserStatusChanged = (data) => {
+      setConversations((prev) =>
+        (prev || []).map((conv) => ({
+          ...conv,
+          participants: (conv.participants || []).map((p) => {
+            const pid = (p?._id ?? p)?.toString?.() || String(p);
+            if (pid === data.userId) {
+              return typeof p === 'object'
+                ? { ...p, isOnline: data.isOnline, lastSeen: data.lastSeen }
+                : { _id: pid, isOnline: data.isOnline, lastSeen: data.lastSeen };
+            }
+            return p;
+          }),
+        }))
+      );
     };
 
     const handleMessageEdited = (data) => {
@@ -199,6 +240,7 @@ const ChatPage = () => {
   socket.on('message_deleted', handleMessageDeleted);
   socket.on('message_deleted_for_me', handleMessageDeletedForMe);
   socket.on('message_reaction_updated', handleMessageReactionUpdated);
+  socket.on('user_status_changed', handleUserStatusChanged);
 
     return () => {
       socket.off('new_message', handleNewMessage);
@@ -210,6 +252,7 @@ const ChatPage = () => {
   socket.off('message_deleted', handleMessageDeleted);
   socket.off('message_deleted_for_me', handleMessageDeletedForMe);
   socket.off('message_reaction_updated', handleMessageReactionUpdated);
+  socket.off('user_status_changed', handleUserStatusChanged);
     };
   }, [socket, isConnected, selectedConversation, user]);
 
@@ -218,14 +261,17 @@ const ChatPage = () => {
 
     setSelectedConversation(conversation);
     setMessageLoading(true);
+    setPage(1);
+    setHasMore(true);
     try {
-      const response = await conversationsAPI.getMessages(conversation._id);
+      const response = await conversationsAPI.getMessages(conversation._id, 1);
       const dataBlock = response?.data?.data || {};
       const arr = Array.isArray(dataBlock.messages) ? dataBlock.messages : [];
       setMessages(arr);
       // Prefer server-provided firstUnreadId for accuracy, fallback to heuristic if absent
-      if (dataBlock.firstUnreadId) {
-        setFirstUnreadId(dataBlock.firstUnreadId);
+      const serverMarker = dataBlock.firstUnreadIdGlobal || dataBlock.firstUnreadId;
+      if (serverMarker) {
+        setFirstUnreadId(serverMarker);
       } else if (conversation.unreadCount > 0 && arr.length > 0) {
         const idx = Math.max(arr.length - conversation.unreadCount, 0);
         const id = arr[idx]?._id || arr[idx]?.id || null;
@@ -233,6 +279,8 @@ const ChatPage = () => {
       } else {
         setFirstUnreadId(null);
       }
+      const total = dataBlock?.pagination?.totalPages || 1;
+      setHasMore((total > 1));
       if (conversation.unreadCount > 0) {
         await conversationsAPI.markAsRead(conversation._id);
         setConversations((prev) =>
@@ -460,6 +508,29 @@ const ChatPage = () => {
               onDelete={(msg, scope) => conversationsAPI.deleteMessage(msg._id, scope)}
               onEdit={(msg, newText) => socket?.emit('edit_message', { messageId: msg._id, content: newText })}
               firstUnreadId={firstUnreadId}
+              onLoadMore={async () => {
+                if (!hasMore || !selectedConversation) return;
+                const nextPage = page + 1;
+                try {
+                  const container = document.querySelector('.messages-scroll-container');
+                  const prevHeight = container ? container.scrollHeight : 0;
+                  const resp = await conversationsAPI.getMessages(selectedConversation._id, nextPage);
+                  const data = resp?.data?.data || {};
+                  const older = Array.isArray(data.messages) ? data.messages : [];
+                  if (older.length === 0) { setHasMore(false); return; }
+                  setMessages((prev) => [...older, ...prev]);
+                  setPage(nextPage);
+                  // Restore scroll position so content doesn't jump
+                  setTimeout(() => {
+                    if (container) {
+                      const newHeight = container.scrollHeight;
+                      container.scrollTop = newHeight - prevHeight;
+                    }
+                  }, 0);
+                } catch (e) {
+                  // no-op
+                }
+              }}
             />
             <MessageInput
               onSendMessage={handleSendMessage}

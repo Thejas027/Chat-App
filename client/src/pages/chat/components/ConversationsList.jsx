@@ -32,6 +32,19 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
     };
   };
 
+  const renderTicks = (conv) => {
+    if (!conv.lastMessageIsOwn) return null;
+    const s = conv.lastMessageStatus;
+    if (!s) return null;
+    return (
+      <span className={`ml-1 text-[11px] ${s === 'read' ? 'text-blue-600' : 'text-gray-400'}`} title={s}>
+        {s === 'sent' && '✓'}
+        {s === 'delivered' && '✓✓'}
+        {s === 'read' && '✓✓'}
+      </span>
+    );
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return conversationsArray;
@@ -131,7 +144,11 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
                         {(typingMap[conversation._id] && typingMap[conversation._id].length > 0) ? (
                           <span className="text-blue-600">typing…</span>
                         ) : (
-                          conversation.lastMessage || 'No messages yet'
+                          <>
+                            {conversation.lastMessageIsOwn ? 'You: ' : ''}
+                            {conversation.lastMessage || 'No messages yet'}
+                            {renderTicks(conversation)}
+                          </>
                         )}
                       </p>
                       

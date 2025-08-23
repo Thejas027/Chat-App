@@ -649,11 +649,31 @@ const getMessagesForConversation = async (req, res) => {
       if (!firstUnreadId && !isFromMe && !hasRead) firstUnreadId = m._id;
     }
 
+    // Compute global markers
+    const oldestUnread = await Message.findOne({
+      conversation: conversationId,
+      deletedFor: { $ne: req.user._id },
+      sender: { $ne: req.user._id },
+      readBy: { $not: { $elemMatch: { user: req.user._id } } }
+    }).sort({ createdAt: 1 }).select('_id').lean();
+
+    const latestReadMsg = await Message.findOne({
+      conversation: conversationId,
+      'readBy.user': req.user._id
+    }).sort({ createdAt: -1 }).select('readBy').lean();
+    let lastReadAtGlobal = null;
+    if (latestReadMsg && Array.isArray(latestReadMsg.readBy)) {
+      const entry = latestReadMsg.readBy.find(r => (r.user?.toString ? r.user.toString() : r.user) === req.user._id.toString());
+      if (entry && entry.readAt) lastReadAtGlobal = entry.readAt;
+    }
+
     res.json({
       success: true,
       data: {
         messages,
         conversation,
+        firstUnreadIdGlobal: oldestUnread?._id || null,
+        lastReadAtGlobal: lastReadAtGlobal || null,
         firstUnreadId: firstUnreadId || null,
         lastReadAt: lastReadAt || null,
         pagination: {
