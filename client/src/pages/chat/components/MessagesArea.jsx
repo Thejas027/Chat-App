@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { API_BASE_URL } from '../../../services/api';
 import { messagesAPI } from '../../../services/api';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import UserAvatar from './UserAvatar';
 import { showChoiceToast, showInputToast } from '../../../utils/toastInteractive';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
@@ -286,78 +287,56 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
 
   return (
     <div className="flex-1 min-h-0 flex flex-col relative">
-      {/* Messages Container */}
-      <div
-        ref={scrollContainerRef}
-        className="messages-scroll-container flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth"
-        style={{
-          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.12), rgba(0,0,0,1) 24px, rgba(0,0,0,1) calc(100% - 24px), rgba(0,0,0,0.12))'
-        }}
-      >
-        {/* top loader */}
-        {loading && (
-          <div className="flex items-center justify-center py-2 text-xs text-gray-500">Loading…</div>
-        )}
-  {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-gray-500">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.418 8-9 8a9.004 9.004 0 01-8.716-6.747M3 12a9 9 0 1118 0z" />
-                </svg>
-              </div>
-              <p className="text-sm">No messages yet</p>
-              <p className="text-xs text-gray-400 mt-1">Start the conversation!</p>
-            </div>
-          </div>
-        ) : (
-          messages.map((message, index) => {
-            const prevMessage = messages[index - 1];
-            const currentUserId = (currentUser?._id || currentUser?.id || '').toString();
-            const senderId = (typeof message.sender === 'string' ? message.sender : message.sender?._id) || '';
-            const isOwn = (senderId.toString() === currentUserId) || message.isOwn;
-            const showAvatar = !prevMessage || !sameSender(prevMessage, message);
-            const nextMessage = messages[index + 1];
-            const firstOfDay = !prevMessage || !isSameDay(prevMessage?.createdAt, message.createdAt);
-            const isFirstInGroup = !prevMessage || !sameSender(prevMessage, message) || !isSameDay(prevMessage?.createdAt, message.createdAt);
-            const isLastInGroup = !nextMessage || !sameSender(nextMessage, message) || !isSameDay(nextMessage?.createdAt, message.createdAt);
-            
-            const isFirstUnread = firstUnreadId && (message._id === firstUnreadId || message.id === firstUnreadId);
-            return (
-              <div key={message._id || message.id || index} data-mid={message._id || message.id}>
-                {isFirstUnread && (
-                  <div className="my-2 flex items-center justify-center">
-                    <span className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full border border-blue-200">Unread</span>
-                  </div>
-                )}
-                {firstOfDay && (
-                  <div className="my-4 flex items-center justify-center">
-                    <span className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
-                      {formatDayLabel(message.createdAt)}
-                    </span>
-                  </div>
-                )}
-                <div className={isFirstInGroup ? 'mt-2' : 'mt-0.5'}>
-                  <MessageItem
-                    message={message}
-                    isOwn={isOwn}
-                    showAvatar={showAvatar}
-                    currentUser={currentUser}
-                    onReply={onReply}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onJump={(mid) => {
-                      const el = scrollContainerRef.current?.querySelector(`[data-mid="${mid}"]`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }}
-                  />
+      <Virtuoso
+        className="messages-scroll-container"
+        style={{ height: '100%', padding: '1.5rem 1.5rem 0.5rem 1.5rem' }}
+        data={messages}
+        totalCount={messages.length}
+        startReached={() => { if (typeof onLoadMore === 'function') onLoadMore(); }}
+        atBottomThreshold={200}
+        itemContent={(index, message) => {
+          const prevMessage = messages[index - 1];
+          const nextMessage = messages[index + 1];
+          const currentUserId = (currentUser?._id || currentUser?.id || '').toString();
+          const senderId = (typeof message.sender === 'string' ? message.sender : message.sender?._id) || '';
+          const isOwn = (senderId.toString() === currentUserId) || message.isOwn;
+          const showAvatar = !prevMessage || !sameSender(prevMessage, message);
+          const firstOfDay = !prevMessage || !isSameDay(prevMessage?.createdAt, message.createdAt);
+          const isFirstInGroup = !prevMessage || !sameSender(prevMessage, message) || !isSameDay(prevMessage?.createdAt, message.createdAt);
+          const isFirstUnread = firstUnreadId && (message._id === firstUnreadId || message.id === firstUnreadId);
+          return (
+            <div key={message._id || message.id || index} data-mid={message._id || message.id} className="space-y-2">
+              {isFirstUnread && (
+                <div className="my-2 flex items-center justify-center">
+                  <span className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full border border-blue-200">Unread</span>
                 </div>
+              )}
+              {firstOfDay && (
+                <div className="my-4 flex items-center justify-center">
+                  <span className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-full">
+                    {formatDayLabel(message.createdAt)}
+                  </span>
+                </div>
+              )}
+              <div className={isFirstInGroup ? 'mt-2' : 'mt-0.5'}>
+                <MessageItem
+                  message={message}
+                  isOwn={isOwn}
+                  showAvatar={showAvatar}
+                  currentUser={currentUser}
+                  onReply={onReply}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onJump={(mid) => {
+                    const el = document.querySelector(`[data-mid="${mid}"]`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                />
               </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+            </div>
+          );
+        }}
+      />
 
       {/* Typing indicator */}
       {typingUsers.length > 0 && (
