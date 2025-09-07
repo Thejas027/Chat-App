@@ -210,46 +210,32 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
 };
 
 const MessagesArea = ({ selectedConversation, messages = [], loading = false, currentUser, typingUsers = [], onReply, onEdit, onDelete, firstUnreadId, onLoadMore, highlightTerm, jumpToMessageId }) => {
-  const messagesEndRef = useRef(null);
-  const scrollContainerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [showNewBadge, setShowNewBadge] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
   const prevConvIdRef = useRef(null);
   const forceScrollRef = useRef(false);
   const virtuosoRef = useRef(null);
 
   const scrollToBottom = useCallback((behavior = 'smooth') => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
-  }, []);
-
-  // Track scroll to toggle scroll-to-bottom button
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const onScroll = () => {
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      setShowScrollDown(distanceFromBottom > 120);
-      if (el.scrollTop < 60 && typeof onLoadMore === 'function') {
-        onLoadMore();
-      }
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => el.removeEventListener('scroll', onScroll);
-  }, []);
+    const idx = Math.max(0, (messages?.length || 1) - 1);
+    if (virtuosoRef.current && typeof virtuosoRef.current.scrollToIndex === 'function') {
+      try {
+        virtuosoRef.current.scrollToIndex({ index: idx, align: 'end', behavior });
+      } catch (_) { /* no-op */ }
+    }
+  }, [messages]);
 
   useEffect(() => {
-    // Auto-scroll on new messages only if user is near bottom
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distanceFromBottom < 200) {
+    // Auto-scroll on new messages if user is at bottom; otherwise show New badge
+    if (forceScrollRef.current) return; // handled by convo switch effect
+    if (atBottom) {
       scrollToBottom('auto');
       setShowNewBadge(false);
     } else {
       setShowNewBadge(true);
     }
-  }, [messages, scrollToBottom]);
+  }, [messages]);
 
   // Jump to a specific message id if requested
   useEffect(() => {
@@ -278,9 +264,10 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
     if (forceScrollRef.current && !loading) {
       scrollToBottom('auto');
       setShowNewBadge(false);
+      setAtBottom(true);
       forceScrollRef.current = false;
     }
-  }, [loading, messages, scrollToBottom]);
+  }, [loading, messages]);
 
   if (!selectedConversation) {
     return (
@@ -338,6 +325,8 @@ const MessagesArea = ({ selectedConversation, messages = [], loading = false, cu
         data={messages}
         totalCount={messages.length}
         startReached={() => { if (typeof onLoadMore === 'function') onLoadMore(); }}
+        atBottomStateChange={(isBottom) => { setAtBottom(isBottom); setShowScrollDown(!isBottom); if (isBottom) setShowNewBadge(false); }}
+        followOutput={atBottom ? 'smooth' : false}
         atBottomThreshold={200}
         itemContent={(index, message) => {
           const prevMessage = messages[index - 1];

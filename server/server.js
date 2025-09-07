@@ -26,8 +26,13 @@ if (process.env.TRUST_PROXY === '1' || process.env.NODE_ENV === 'production') {
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration (allow common Vite dev ports)
+// CORS configuration (support multiple origins via CORS_ORIGINS)
+const envOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
 const allowedOrigins = [
+  ...envOrigins,
   process.env.CLIENT_URL,
   'http://localhost:5173',
   'http://localhost:5174'
@@ -57,6 +62,8 @@ app.use(cookieParser()); // Parse cookies
 // Limit request body size to mitigate abuse
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Note: Static serving of uploads was disabled per revert request
 
 // Routes
 // Basic rate limits

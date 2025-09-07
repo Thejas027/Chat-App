@@ -4,9 +4,17 @@ const { User } = require('../models');
 
 class SocketManager {
   constructor(server) {
+    const envOrigins = (process.env.CORS_ORIGINS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const allowedOrigins = [
+      ...envOrigins,
+      process.env.CLIENT_URL || 'http://localhost:5173'
+    ];
     this.io = new Server(server, {
       cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        origin: allowedOrigins,
         credentials: true,
         methods: ["GET", "POST"]
       }
