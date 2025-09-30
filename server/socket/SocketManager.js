@@ -75,6 +75,16 @@ class SocketManager {
       this.handleMarkAsRead(socket);
       this.handleEditMessage(socket);
       this.handleDisconnection(socket);
+      this.handlePingHealth(socket);
+    });
+  }
+  
+  // Handle ping health checks
+  handlePingHealth(socket) {
+    socket.on('ping_health', (_, callback) => {
+      if (typeof callback === 'function') {
+        callback();
+      }
     });
   }
 
@@ -268,19 +278,24 @@ class SocketManager {
   // Update user online status
   async updateUserOnlineStatus(userId, isOnline) {
     try {
-      await User.findByIdAndUpdate(userId, {
+      const now = new Date();
+      
+      const updatedUser = await User.findByIdAndUpdate(userId, {
         isOnline,
-        lastSeen: isOnline ? new Date() : new Date()
-      });
+        lastSeen: now
+      }, { new: true });
 
       // Broadcast online status change
       this.io.emit('user_status_changed', {
         userId,
         isOnline,
-        lastSeen: new Date()
+        lastSeen: now
       });
+      
+      return updatedUser;
     } catch (error) {
       console.error('Error updating online status:', error);
+      return null;
     }
   }
 

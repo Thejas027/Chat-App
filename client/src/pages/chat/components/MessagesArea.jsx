@@ -92,21 +92,26 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
   const onTouchEnd = () => { touchActive = false; };
 
   return (
-  <div className={`flex items-end mb-2 ${isOwn ? 'justify-end' : 'justify-start'}`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+  <div className={`flex items-end mb-2 group ${isOwn ? 'justify-end' : 'justify-start'}`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
       {showAvatar && !isOwn && (
-        <UserAvatar
-          src={message.sender?.avatar}
-          alt={message.sender?.fullName}
-          size="small"
-          initials={message.sender?.fullName?.charAt(0) || '?'}
-        />
+        <div className="mr-2 transform transition-transform duration-300 group-hover:scale-105">
+          <UserAvatar
+            src={message.sender?.avatar}
+            alt={message.sender?.fullName}
+            size="small"
+            status={message.sender?.isOnline ? 'online' : message.sender?.status || 'offline'}
+            initials={message.sender?.fullName?.charAt(0) || '?'}
+            lastSeen={message.sender?.lastSeen}
+            className="hover:ring-2 hover:ring-offset-1 hover:ring-blue-300"
+          />
+        </div>
       )}
       
       <div
-  className={`max-w-[70%] px-3 py-2 rounded-2xl shadow-sm break-words ${
+  className={`max-w-[70%] px-4 py-2.5 break-words ${
           isOwn
-            ? 'bg-blue-600 text-white rounded-br-sm'
-            : 'bg-slate-100 text-slate-900 rounded-bl-sm border border-slate-200'
+            ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-t-2xl rounded-bl-2xl rounded-br-sm shadow-md'
+            : 'bg-white text-slate-800 rounded-t-2xl rounded-br-2xl rounded-bl-sm shadow-sm border border-slate-200'
         }`}
       >
         {!isOwn && showAvatar && (
@@ -155,9 +160,18 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
 
         {/* Reactions summary (only when there are reactions) */}
         {Array.isArray(message.reactions) && message.reactions.length > 0 && (
-          <div className="mt-1 flex items-center gap-1 flex-wrap">
+          <div className={`mt-2 -mx-1 flex items-center gap-1.5 flex-wrap ${isOwn ? '-mr-2' : '-ml-2'}`}>
             {Object.entries((message.reactions || []).reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {})).map(([emoji, count]) => (
-              <button key={emoji} onClick={() => handleToggleReaction(emoji)} className={`text-xs px-1.5 py-0.5 rounded-full border ${isOwn ? 'border-white/30 text-white' : 'border-gray-300 text-gray-700'} hover:opacity-80`}>{emoji} {count}</button>
+              <button 
+                key={emoji} 
+                onClick={() => handleToggleReaction(emoji)} 
+                className={`text-sm px-2 py-0.5 rounded-full shadow-sm transition-transform hover:scale-110 active:scale-95
+                  ${isOwn 
+                    ? 'bg-white/20 backdrop-blur-sm hover:bg-white/30' 
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+              >
+                {emoji} <span className="text-xs font-medium ml-0.5">{count}</span>
+              </button>
             ))}
           </div>
         )}
@@ -168,22 +182,61 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
           </p>
           
           {isOwn && (
-            <div className={`text-[10px] ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
-              {message.status === 'sending' && '⏳'}
-              {message.status === 'sent' && '✓'}
-              {message.status === 'delivered' && '✓✓'}
-              {message.status === 'read' && '✓✓'}
+            <div className={`flex items-center ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
+              {message.status === 'sending' && (
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {message.status === 'sent' && (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                  <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                </svg>
+              )}
+              {message.status === 'delivered' && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="w-3 h-3" viewBox="0 0 16 16">
+                  <path d="M8.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L2.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093L8.95 4.992a.252.252 0 0 1 .02-.022zm-.92 5.14.92.92a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 1 0-1.091-1.028L9.477 9.417l-.485-.486-.943 1.179z"/>
+                </svg>
+              )}
+              {message.status === 'read' && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="w-3 h-3 text-blue-300" viewBox="0 0 16 16">
+                  <path d="M8.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L2.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093L8.95 4.992a.252.252 0 0 1 .02-.022zm-.92 5.14.92.92a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 1 0-1.091-1.028L9.477 9.417l-.485-.486-.943 1.179z"/>
+                </svg>
+              )}
             </div>
           )}
         </div>
-        <div className="mt-1 -mb-1 flex gap-2 opacity-0 hover:opacity-100 transition-opacity relative">
-          <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => onReply?.(message)}>Reply</button>
-          <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => setShowPicker((s) => !s)}>React</button>
-          {isOwn && <button className="text-xs text-gray-500 hover:text-gray-700" onClick={async () => {
+        <div className="mt-1.5 -mb-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity relative">
+          <button className="text-xs px-2 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600" onClick={() => onReply?.(message)}>
+            <span className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                <path fillRule="evenodd" d="M7.28 7.72a.75.75 0 010 1.06l-2.47 2.47H14a.75.75 0 010 1.5H4.81l2.47 2.47a.75.75 0 11-1.06 1.06l-3.75-3.75a.75.75 0 010-1.06l3.75-3.75a.75.75 0 011.06 0z" clipRule="evenodd" />
+              </svg>
+              Reply
+            </span>
+          </button>
+          <button className="text-xs px-2 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600" onClick={() => setShowPicker((s) => !s)}>
+            <span className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-.464 5.535a1 1 0 10-1.415-1.414 3 3 0 01-4.242 0 1 1 0 00-1.415 1.414 5 5 0 007.072 0z" clipRule="evenodd" />
+              </svg>
+              React
+            </span>
+          </button>
+          {isOwn && <button className="text-xs px-2 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600" onClick={async () => {
             const newText = await showInputToast('Edit message', { initialValue: message.content || '' });
             if (newText != null) onEdit?.(message, newText);
-          }}>Edit</button>}
-          <button className="text-xs text-red-500 hover:text-red-600" onClick={async () => {
+          }}>
+            <span className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+                <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
+              </svg>
+              Edit
+            </span>
+          </button>}
+          <button className="text-xs px-2 py-1 rounded-full bg-red-50 hover:bg-red-100 text-red-600" onClick={async () => {
             let scope = 'me';
             if (isOwn) {
               const choice = await showChoiceToast('Delete message for…', [
@@ -193,13 +246,40 @@ const MessageItem = ({ message, isOwn, showAvatar = true, currentUser, onReply, 
               scope = choice || 'me';
             }
             onDelete?.(message, scope);
-          }}>Delete</button>
-          <button className="text-xs text-gray-500 hover:text-gray-700" onClick={() => navigator.clipboard.writeText(message.content || '')}>Copy</button>
+          }}>
+            <span className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+              </svg>
+              Delete
+            </span>
+          </button>
+          <button className="text-xs px-2 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600" onClick={() => navigator.clipboard.writeText(message.content || '')}>
+            <span className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                <path fillRule="evenodd" d="M15.988 3.012A2.25 2.25 0 0118 5.25v6.5A2.25 2.25 0 0115.75 14H13.5V7A2.5 2.5 0 0011 4.5H8.128a2.252 2.252 0 011.884-1.488A2.25 2.25 0 0112.25 1h1.5a2.25 2.25 0 012.238 2.012zM11.5 3.25a.75.75 0 01.75-.75h1.5a.75.75 0 01.75.75v.25h-3v-.25z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M2 7a1 1 0 011-1h8a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm2 3.25a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75zm0 3.5a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75z" clipRule="evenodd" />
+              </svg>
+              Copy
+            </span>
+          </button>
 
           {showPicker && (
-            <div className="absolute -top-9 left-0 bg-white border rounded-lg shadow p-1 flex gap-1 z-10" onMouseLeave={() => setShowPicker(false)}>
+            <div 
+              className="absolute -top-12 left-0 bg-white border rounded-xl shadow-lg p-2 flex gap-1.5 z-10 animate-fade-in" 
+              onMouseLeave={() => setShowPicker(false)}
+            >
               {EMOJI_SET.map(em => (
-                <button key={em} className="px-1 text-lg hover:scale-110" onClick={() => { handleToggleReaction(em); setShowPicker(false); }}>{em}</button>
+                <button 
+                  key={em} 
+                  className="w-8 h-8 text-xl flex items-center justify-center rounded-full hover:bg-gray-100 transition-all hover:scale-110 active:scale-95" 
+                  onClick={() => { 
+                    handleToggleReaction(em); 
+                    setShowPicker(false); 
+                  }}
+                >
+                  {em}
+                </button>
               ))}
             </div>
           )}

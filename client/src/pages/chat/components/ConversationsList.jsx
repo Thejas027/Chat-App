@@ -2,11 +2,13 @@ import PropTypes from 'prop-types';
 import { useMemo, useState } from 'react';
 import UserAvatar from './UserAvatar';
 import LoadingSpinner from '../../../components/ui/LoadingSpinner';
+import { useSocket } from '../../../context/SocketContext';
 
 const ConversationsList = ({ conversations = [], selectedConversation, onSelectConversation, loading = false, currentUserId, onNewChat, typingMap = {} }) => {
   // Ensure conversations is always an array
   const conversationsArray = Array.isArray(conversations) ? conversations : [];
   const [query, setQuery] = useState('');
+  const { userStatuses } = useSocket();
   
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
@@ -116,50 +118,98 @@ const ConversationsList = ({ conversations = [], selectedConversation, onSelectC
               <div
                 key={conversation._id}
                 onClick={() => onSelectConversation(conversation)}
-                className={`p-4 cursor-pointer transition-colors duration-200 hover:bg-blue-50 ${
-                  selectedConversation?._id === conversation._id ? 'bg-blue-100' : ''
+                className={`relative p-4 cursor-pointer transition-all duration-200 hover:bg-blue-50 ${
+                  selectedConversation?._id === conversation._id 
+                    ? 'bg-blue-100 border-l-4 border-blue-600 pl-3' 
+                    : conversation.unreadCount > 0 
+                      ? 'bg-blue-50/50 border-l border-blue-300 hover:border-blue-400'
+                      : ''
                 }`}
               >
-                <div className="flex items-center space-x-3">
-                  <UserAvatar
-                    src={otherParticipant.avatar}
-                    alt={otherParticipant.fullName}
-                    size="medium"
-                    status={otherParticipant.isOnline ? 'online' : 'offline'}
-                    initials={otherParticipant.fullName?.split(' ').map(n => n[0]).join('') || '?'}
-                  />
+                <div className="flex items-center gap-3">
+                  <div className="relative transition-transform duration-200 hover:scale-105">
+                    <UserAvatar
+                      src={otherParticipant.avatar}
+                      alt={otherParticipant.fullName}
+                      size="medium"
+                      status={typingMap[conversation._id] && typingMap[conversation._id].length > 0 
+                        ? 'typing' 
+                        : userStatuses[otherParticipant._id]?.isOnline || otherParticipant.isOnline 
+                          ? 'online' 
+                          : 'offline'
+                      }
+                      initials={otherParticipant.fullName?.split(' ').map(n => n[0]).join('') || '?'}
+                      lastSeen={userStatuses[otherParticipant._id]?.lastSeen || otherParticipant.lastSeen}
+                      className={conversation.unreadCount > 0 ? "avatar-highlight" : ""}
+                      showStatusAnimation={conversation.unreadCount > 0 || (typingMap[conversation._id] && typingMap[conversation._id].length > 0)}
+                    />
+                  </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <h3 className={`text-sm font-semibold truncate ${
+                        conversation.unreadCount > 0 ? 'text-blue-800' : 'text-gray-900'
+                      }`}>
                         {otherParticipant.fullName || 'Unknown User'}
                       </h3>
-                      <span className="text-xs text-gray-500">
-                        {formatTimestamp(conversation.lastMessageTime)}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {conversation.unreadCount > 0 && (
+                          <span className="flex items-center justify-center h-5 min-w-5 px-1.5 text-xs font-bold text-white bg-blue-600 rounded-full shadow-sm">
+                            {conversation.unreadCount}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-500 tabular-nums">
+                          {formatTimestamp(conversation.lastMessageTime)}
+                        </span>
+                      </div>
                     </div>
                     
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-sm text-gray-600 truncate max-w-40">
+                    <div className="flex items-center mt-1">
+                      <p className={`text-sm truncate max-w-52 ${
+                        conversation.unreadCount > 0 ? 'font-medium text-gray-900' : 'text-gray-600'
+                      }`}>
                         {(typingMap[conversation._id] && typingMap[conversation._id].length > 0) ? (
-                          <span className="text-blue-600">typing…</span>
+                          <span className="inline-flex items-center text-blue-600">
+                            <span className="mr-1.5 flex">
+                              <span className="w-1 h-1 bg-blue-600 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
+                              <span className="w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-typing" style={{ animationDelay: '300ms' }}></span>
+                              <span className="w-1 h-1 bg-blue-600 rounded-full animate-typing" style={{ animationDelay: '600ms' }}></span>
+                            </span>
+                            typing...
+                          </span>
                         ) : (
-                          <>
-                            {conversation.lastMessageIsOwn ? 'You: ' : ''}
+                          <span className="flex items-center">
+                            {conversation.lastMessageIsOwn && (
+                              <span className="inline-flex mr-1 text-gray-500">
+                                {conversation.lastMessageStatus === 'sent' && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 mr-1">
+                                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                                {conversation.lastMessageStatus === 'delivered' && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="w-3 h-3 mr-1" viewBox="0 0 16 16">
+                                    <path d="M8.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L2.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093L8.95 4.992a.252.252 0 0 1 .02-.022zm-.92 5.14.92.92a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 1 0-1.091-1.028L9.477 9.417l-.485-.486-.943 1.179z"/>
+                                  </svg>
+                                )}
+                                {conversation.lastMessageStatus === 'read' && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="w-3 h-3 mr-1 text-blue-600" viewBox="0 0 16 16">
+                                    <path d="M8.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L2.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093L8.95 4.992a.252.252 0 0 1 .02-.022zm-.92 5.14.92.92a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 1 0-1.091-1.028L9.477 9.417l-.485-.486-.943 1.179z"/>
+                                  </svg>
+                                )}
+                                You:
+                              </span>
+                            )}
                             {conversation.lastMessage || 'No messages yet'}
-                            {renderTicks(conversation)}
-                          </>
+                          </span>
                         )}
                       </p>
-                      
-                      {conversation.unreadCount > 0 && (
-                        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-blue-600 rounded-full">
-                          {conversation.unreadCount}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
+                
+                {selectedConversation?._id === conversation._id && (
+                  <div className="absolute top-0 bottom-0 right-0 w-1 bg-blue-600"></div>
+                )}
               </div>
             );
           })}

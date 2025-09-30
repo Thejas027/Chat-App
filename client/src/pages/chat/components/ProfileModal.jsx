@@ -30,9 +30,12 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdated }) => {
     setAvatarPreview(URL.createObjectURL(file));
   };
 
+  const [isDragging, setIsDragging] = useState(false);
+  
   const onDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
       setAvatarFile(file);
@@ -58,16 +61,42 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdated }) => {
   useEffect(() => {
     const node = dropRef.current;
     if (!node) return;
-    const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
-    node.addEventListener('dragenter', prevent);
-    node.addEventListener('dragover', prevent);
+    
+    const onDragEnter = (e) => { 
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(true);
+    };
+    
+    const onDragOver = (e) => { 
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isDragging) setIsDragging(true);
+    };
+    
+    const onDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Only set dragging to false if we're leaving the drop target
+      // and not entering a child element
+      if (!e.relatedTarget || !node.contains(e.relatedTarget)) {
+        setIsDragging(false);
+      }
+    };
+    
+    node.addEventListener('dragenter', onDragEnter);
+    node.addEventListener('dragover', onDragOver);
+    node.addEventListener('dragleave', onDragLeave);
     node.addEventListener('drop', onDrop);
+    
     return () => {
-      node.removeEventListener('dragenter', prevent);
-      node.removeEventListener('dragover', prevent);
+      node.removeEventListener('dragenter', onDragEnter);
+      node.removeEventListener('dragover', onDragOver);
+      node.removeEventListener('dragleave', onDragLeave);
       node.removeEventListener('drop', onDrop);
     };
-  }, []);
+  }, [isDragging]);
 
   const handleSave = async () => {
     if (!fullName.trim()) {
@@ -115,29 +144,55 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdated }) => {
           </button>
         </div>
         <div className="px-6 py-5">
-          <div ref={dropRef} className="flex items-center gap-5 mb-5">
+          <div 
+            ref={dropRef} 
+            className={`flex items-center gap-5 mb-5 p-3 rounded-xl transition-all duration-300 ${
+              isDragging 
+                ? 'bg-blue-50 border-2 border-dashed border-blue-300 ring-4 ring-blue-100 ring-opacity-50' 
+                : 'border-2 border-transparent'
+            }`}
+          >
             <div className="relative">
-              <img
-                src={avatarPreview || normalizeSrc(user?.avatar) || ''}
-                alt={user?.fullName}
-                className="w-20 h-20 rounded-full object-cover bg-gray-100 border"
-              />
+              {/* Display user avatar with preview */}
+              {avatarPreview ? (
+                <div className="w-20 h-20 rounded-full overflow-hidden shadow-lg">
+                  <img
+                    src={avatarPreview}
+                    alt={user?.fullName}
+                    className="w-full h-full object-cover bg-gray-100 transition-transform duration-300 hover:scale-105"
+                  />
+                </div>
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                  {user?.fullName?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+              )}
               {avatarPreview && (
                 <button
                   onClick={onRemovePhoto}
-                  className="absolute -bottom-2 -right-2 p-1 rounded-full bg-white border shadow"
+                  className="absolute -bottom-2 -right-2 p-1.5 rounded-full bg-white border-2 border-red-100 shadow-md hover:bg-red-50 transition-colors duration-200 hover:scale-110 active:scale-95"
                   title="Remove photo"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6 8a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path d="M6 8a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" /></svg>
                 </button>
               )}
             </div>
             <div className="flex-1">
-              <label className="inline-flex items-center px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 cursor-pointer text-sm">
-                Change photo
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-sm cursor-pointer text-sm transition-all duration-200 hover:shadow hover:scale-105 active:scale-95">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Choose a photo
                 <input type="file" accept="image/*" className="hidden" onChange={onPickAvatar} />
               </label>
-              <p className="text-xs text-gray-500 mt-2">Drag & drop an image here too.</p>
+              <p className="text-xs text-gray-500 mt-2">
+                <span className="inline-flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  Drag & drop an image here too
+                </span>
+              </p>
             </div>
           </div>
 

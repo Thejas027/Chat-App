@@ -413,33 +413,61 @@ const ChatPage = () => {
   }, []);
 
   return (
-    <div className="h-screen flex bg-gray-100 overflow-x-hidden">
+    <div className="h-screen flex bg-gray-50 overflow-x-hidden">
       {/* Sidebar (Conversations) - full screen on mobile, fixed width on desktop */}
-  <div className={`${selectedConversation ? 'hidden' : 'flex'} sm:flex w-full sm:w-96 h-full bg-white border-r border-gray-200 flex-col min-w-0 overflow-x-hidden`}>
-        <div className="p-2 border-b border-gray-200">
+      <div className={`${selectedConversation ? 'hidden' : 'flex'} sm:flex w-full sm:w-96 h-full bg-white shadow-lg sm:shadow-md flex-col min-w-0 overflow-x-hidden relative z-10`}>
+        <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-3">
               <div className="relative">
-                <UserAvatar src={user?.avatar} alt={user?.fullName} size="large" status="online" />
+                <div className="transform transition-transform hover:scale-105 duration-300">
+                  <UserAvatar 
+                    src={user?.avatar} 
+                    alt={user?.fullName} 
+                    size="large" 
+                    status="online"
+                    showStatusAnimation={true}
+                    className="ring-2 ring-offset-2 ring-blue-100"
+                  />
+                </div>
                 <button
                   onClick={() => setProfileOpen(true)}
-                  className="absolute hover:cursor-pointer -bottom-1 -right-1 p-1 rounded-full bg-white text-gray-700 shadow border hover:bg-gray-50"
+                  className="absolute hover:cursor-pointer -bottom-1 -right-1 p-1.5 rounded-full bg-white text-blue-600 shadow-md border border-blue-100 hover:bg-blue-50 transition-colors hover:scale-110 active:scale-95"
                   title="Edit profile"
                   aria-label="Edit profile"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                 </button>
               </div>
               <div>
-                <h2 className="font-semibold text-lg">{user?.fullName}</h2>
-                <p className="text-sm text-green-500">Online</p>
+                <h2 className="font-semibold text-lg text-gray-800">{user?.fullName}</h2>
+                <p className="text-sm flex items-center gap-1.5">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                  </span>
+                  <span className="text-green-600 font-medium">Online</span>
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-200" title="Logout">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button 
+                onClick={() => setIsSearchOpen(true)}
+                className="p-2.5 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                title="Search messages (Ctrl+K)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+              <button 
+                onClick={handleLogout} 
+                className="p-2.5 rounded-full hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors" 
+                title="Logout"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </button>
@@ -447,7 +475,7 @@ const ChatPage = () => {
           </div>
         </div>
 
-    <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0">
           <ConversationsList
             conversations={conversations}
             selectedConversation={selectedConversation}
@@ -461,46 +489,76 @@ const ChatPage = () => {
       </div>
 
       {/* Chat Pane - hidden on mobile until a conversation is selected */}
-  <div className={`${selectedConversation ? 'flex' : 'hidden'} sm:flex flex-1 min-h-0 min-w-0 flex-col w-full overflow-x-hidden`}>
+      <div className={`${selectedConversation ? 'flex' : 'hidden'} sm:flex flex-1 min-h-0 min-w-0 flex-col w-full overflow-x-hidden bg-white sm:bg-gray-50`}>
         {selectedConversation ? (
           <>
-            <div className="p-5 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10">
-              <div className="flex items-center space-x-4">
+            <div className="px-5 py-4 bg-white shadow-sm flex items-center justify-between sticky top-0 z-10">
+              <div className="flex items-center gap-4">
                 {/* Mobile back button */}
                 <button
                   type="button"
                   onClick={() => setSelectedConversation(null)}
-                  className="sm:hidden mr-1 p-2 -ml-2 rounded-full hover:bg-gray-100"
+                  className="sm:hidden p-2.5 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
                   aria-label="Back to conversations"
                   title="Back"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
                 {selectedUser && (
-                  <UserAvatar
-                    src={selectedUser.avatar}
-                    alt={selectedUser.fullName}
-                    status={selectedUser.isOnline ? 'online' : 'offline'}
-                  />
+                  <div className="relative">
+                    <UserAvatar
+                      src={selectedUser.avatar}
+                      alt={selectedUser.fullName}
+                      status={selectedUser.isOnline ? 'online' : 'offline'}
+                    />
+                    
+                    {typingUsers.length > 0 && (
+                      <span className="absolute -bottom-1 -right-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                      </span>
+                    )}
+                  </div>
                 )}
                 <div>
-                  <h3 className="font-semibold">{selectedUser?.fullName}</h3>
+                  <h3 className="font-semibold text-gray-800">{selectedUser?.fullName}</h3>
                   <p className="text-sm text-gray-500">
                     {typingUsers.length > 0 ? (
-                      <span className="inline-flex items-center gap-1">typing
-                        <span className="relative flex h-2 w-6 items-center">
-                          <span className="mx-[1px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="mx-[1px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '120ms' }} />
-                          <span className="mx-[1px] inline-block h-1.5 w-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: '240ms' }} />
+                      <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
+                        <span className="mr-1 flex">
+                          <span className="w-1 h-1 bg-blue-600 rounded-full animate-typing" style={{ animationDelay: '0ms' }}></span>
+                          <span className="w-1 h-1 mx-0.5 bg-blue-600 rounded-full animate-typing" style={{ animationDelay: '300ms' }}></span>
+                          <span className="w-1 h-1 bg-blue-600 rounded-full animate-typing" style={{ animationDelay: '600ms' }}></span>
                         </span>
+                        typing...
                       </span>
-                    ) : (selectedUser?.isOnline ? 'Online' : formatLastSeen(selectedUser?.lastSeen))}
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 ${selectedUser?.isOnline ? 'text-green-600' : 'text-gray-500'}`}>
+                        {selectedUser?.isOnline && (
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                          </span>
+                        )}
+                        {selectedUser?.isOnline ? 'Online' : formatLastSeen(selectedUser?.lastSeen)}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
-              <div />
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsSearchOpen(true)}
+                  className="p-2.5 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Search messages (Ctrl+K)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <MessagesArea
               selectedConversation={selectedConversation}
